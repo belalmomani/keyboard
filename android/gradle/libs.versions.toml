@@ -1,0 +1,91 @@
+[versions]
+agp = "8.7.3"
+kotlin = "2.0.21"
+
+coreKtx = "1.13.1"
+splashscreen = "1.0.1"
+lifecycle = "2.8.6"
+activityCompose = "1.9.2"
+composeBom = "2024.09.03"
+navigationCompose = "2.8.2"
+
+datastore = "1.1.1"
+securityCrypto = "1.1.0"
+serialization = "1.7.3"
+coroutines = "1.9.0"
+
+# Pinned to a commit: JitPack builds this from source, and a moving "master-SNAPSHOT"
+# would change the encryption library under every build.
+noiseJava = "49377b6dfc6a1e75740bce2318118291a57c0d6e"
+
+# The camera and the QR code reader behind "Scan QR code". Both are Apache 2.0 and need no Google
+# Play Services, so the app stays installable without them and eligible for F-Droid.
+camerax = "1.4.1"
+zxing = "3.5.4"
+
+# The list of every library inside the app, with its license, shown under Settings, About. 11.2 is the line made for
+# the Android Gradle Plugin and Kotlin versions used here.
+aboutlibraries = "11.2.3"
+
+robolectric = "4.14.1"
+roborazzi = "1.30.1"
+
+junit = "4.13.2"
+mockk = "1.13.17"
+androidxTestExt = "1.2.1"
+espressoCore = "3.6.1"
+
+[libraries]
+androidx-core-splashscreen          = { group = "androidx.core",        name = "core-splashscreen",               version.ref = "splashscreen" }
+androidx-core-ktx                    = { group = "androidx.core",        name = "core-ktx",                        version.ref = "coreKtx" }
+androidx-lifecycle-runtime-ktx       = { group = "androidx.lifecycle",   name = "lifecycle-runtime-ktx",           version.ref = "lifecycle" }
+androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle",   name = "lifecycle-viewmodel-compose",     version.ref = "lifecycle" }
+androidx-lifecycle-runtime-compose   = { group = "androidx.lifecycle",   name = "lifecycle-runtime-compose",       version.ref = "lifecycle" }
+androidx-activity-compose            = { group = "androidx.activity",    name = "activity-compose",                version.ref = "activityCompose" }
+
+androidx-compose-bom                 = { group = "androidx.compose",     name = "compose-bom",                     version.ref = "composeBom" }
+androidx-compose-ui                  = { group = "androidx.compose.ui",  name = "ui" }
+androidx-compose-ui-graphics         = { group = "androidx.compose.ui",  name = "ui-graphics" }
+androidx-compose-ui-tooling-preview  = { group = "androidx.compose.ui",  name = "ui-tooling-preview" }
+androidx-compose-ui-tooling          = { group = "androidx.compose.ui",  name = "ui-tooling" }
+androidx-compose-material3           = { group = "androidx.compose.material3", name = "material3" }
+androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
+
+androidx-navigation-compose          = { group = "androidx.navigation",  name = "navigation-compose",              version.ref = "navigationCompose" }
+
+androidx-datastore-preferences       = { group = "androidx.datastore",   name = "datastore-preferences",           version.ref = "datastore" }
+androidx-security-crypto             = { group = "androidx.security",    name = "security-crypto",                 version.ref = "securityCrypto" }
+
+noise-java                           = { group = "com.github.rweather",   name = "noise-java",                      version.ref = "noiseJava" }
+
+androidx-camera-core                 = { group = "androidx.camera",       name = "camera-core",                     version.ref = "camerax" }
+androidx-camera-camera2              = { group = "androidx.camera",       name = "camera-camera2",                  version.ref = "camerax" }
+androidx-camera-lifecycle            = { group = "androidx.camera",       name = "camera-lifecycle",                version.ref = "camerax" }
+androidx-camera-view                 = { group = "androidx.camera",       name = "camera-view",                     version.ref = "camerax" }
+zxing-core                           = { group = "com.google.zxing",      name = "core",                            version.ref = "zxing" }
+
+aboutlibraries-core                  = { group = "com.mikepenz",          name = "aboutlibraries-core",             version.ref = "aboutlibraries" }
+aboutlibraries-compose-m3            = { group = "com.mikepenz",          name = "aboutlibraries-compose-m3",       version.ref = "aboutlibraries" }
+
+kotlinx-serialization-json           = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json",     version.ref = "serialization" }
+kotlinx-coroutines-android           = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android",     version.ref = "coroutines" }
+kotlinx-coroutines-test              = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test",        version.ref = "coroutines" }
+
+robolectric                          = { group = "org.robolectric",       name = "robolectric",                    version.ref = "robolectric" }
+roborazzi                            = { group = "io.github.takahirom.roborazzi", name = "roborazzi",              version.ref = "roborazzi" }
+roborazzi-compose                    = { group = "io.github.takahirom.roborazzi", name = "roborazzi-compose",      version.ref = "roborazzi" }
+androidx-compose-ui-test-junit4      = { group = "androidx.compose.ui",   name = "ui-test-junit4" }
+androidx-compose-ui-test-manifest    = { group = "androidx.compose.ui",   name = "ui-test-manifest" }
+
+junit                                = { group = "junit",                 name = "junit",                          version.ref = "junit" }
+mockk                                = { group = "io.mockk",              name = "mockk",                          version.ref = "mockk" }
+androidx-test-ext-junit              = { group = "androidx.test.ext",     name = "junit",                          version.ref = "androidxTestExt" }
+androidx-test-espresso-core          = { group = "androidx.test.espresso", name = "espresso-core",                 version.ref = "espressoCore" }
+
+[plugins]
+android-application                  = { id = "com.android.application",                       version.ref = "agp" }
+kotlin-android                       = { id = "org.jetbrains.kotlin.android",                  version.ref = "kotlin" }
+kotlin-compose                       = { id = "org.jetbrains.kotlin.plugin.compose",           version.ref = "kotlin" }
+roborazzi                            = { id = "io.github.takahirom.roborazzi",                 version.ref = "roborazzi" }
+kotlin-serialization                 = { id = "org.jetbrains.kotlin.plugin.serialization",     version.ref = "kotlin" }
+aboutlibraries                       = { id = "com.mikepenz.aboutlibraries.plugin",            version.ref = "aboutlibraries" }

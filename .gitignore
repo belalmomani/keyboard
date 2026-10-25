@@ -1,0 +1,65 @@
+# Build artifacts
+**/build/
+target/
+dist/
+*.iml
+*.class
+*.jar
+!gradle-wrapper.jar
+!**/gradle-wrapper.jar
+*.so
+*.dll
+*.exe
+*.o
+*.obj
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local Android config (paths differ per developer machine)
+local.properties
+keystore.properties
+*.keystore
+*.jks
+
+# Android libs that must be vendored (download yourself)
+android/app/libs/*.jar
+
+# Logs
+*.log
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Test coverage
+coverage/
+*.gcov
+*.gcda
+*.gcno
+
+# What building the Arch package (packaging/arch) leaves behind
+/packaging/arch/src/
+/packaging/arch/pkg/
+/packaging/arch/*.tar.gz
+/packaging/arch/*.pkg.tar.*
+
+# Testing & temporary captures
+/*.png
+/*.jpg
+/*.jpeg
+/*.webp
+**/.android_agent_state.json
+**/_android_agent_dump.xml
+**/_screencap.png
+*.pdb
+*.dmp
+*.bak
