@@ -18,6 +18,13 @@ All notable changes are listed here, newest first. The format follows [Keep a Ch
   - Over Wi-Fi to the new PC program, the PC says how every command went (done, refused by Windows, or no answer) and never runs a repeated request twice. Over Bluetooth, or to an older PC program, the app says only that a command was sent.
   - Commands that can close things or run lines (lock, Alt+F4, Delete, texts with line breaks) ask first.
 - The wheel is flat (2D); there is no 3D wheel.
+- **Boards tab** with five ways to use the phone besides the pad and keys:
+  - Cube: four faces (typing, numbers, commands, saved phrases) that turn into one another. The turn is a real rotation, and it is skipped when the system's animations are off.
+  - Cockpit: the PC's name, link and program in front, media and volume controls, the usual actions, and the open windows.
+  - Swipe keys: swipes in eight directions press keys (arrows and page keys, editing keys, or browsing shortcuts).
+  - Mouse puppet: pull a handle and the pointer moves faster the farther you pull; clicks are the buttons below it. Uses the app's sensitivity setting.
+  - Fractal keyboard: a few big keys at a time (a group, then a letter), Latin or Arabic. The letters you use most climb to the first level. Only how often each letter was used is kept, on the phone, and it can be forgotten.
+- The tabs along the top scroll, since there are six now.
 - Test builds workflow: run it by hand to get a debug APK and the Windows programs.
 
 ## [2.0.0] - 2026-10-18

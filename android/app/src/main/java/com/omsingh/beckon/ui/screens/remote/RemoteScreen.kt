@@ -7,6 +7,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material3.FilterChip
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -30,6 +33,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.HelpOutline
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Bookmarks
+import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.Mouse
 import androidx.compose.material.icons.rounded.PlayCircle
@@ -92,6 +96,7 @@ enum class RemoteMode(val icon: ImageVector, val label: Int) {
     MEDIA(Icons.Rounded.PlayCircle, R.string.remote_mode_media),
     QUICK(Icons.Rounded.Bolt, R.string.remote_mode_quick),
     LIBRARY(Icons.Rounded.Bookmarks, R.string.remote_mode_library),
+    BOARDS(Icons.Rounded.Dashboard, R.string.remote_mode_boards),
 }
 
 /** The remote control wired to its view model, with the brief messages it shows. */
@@ -129,6 +134,7 @@ fun RemoteRoute(
         keyboard = viewModel.keyboard,
         library = viewModel.library,
         quick = viewModel.quick,
+        interfaces = viewModel.interfaces,
         snackbar = snackbar,
         onGoToDevices = onGoToDevices,
         modifier = modifier,
@@ -146,6 +152,7 @@ fun RemoteScreen(
     snackbar: SnackbarHostState = remember { SnackbarHostState() },
     library: LibraryController? = null,
     quick: QuickController? = null,
+    interfaces: InterfacesController? = null,
 ) {
     var mode by rememberSaveable { mutableStateOf(RemoteMode.PAD) }
     val keyboardUi = rememberKeyboardUiState()
@@ -187,6 +194,7 @@ fun RemoteScreen(
                     mode = mode,
                     library = library,
                     quick = quick,
+                    interfaces = interfaces,
                     haptics = haptics,
                     modifier = contentModifier,
                 )
@@ -257,6 +265,7 @@ private fun RemoteContent(
     mode: RemoteMode,
     library: LibraryController?,
     quick: QuickController?,
+    interfaces: InterfacesController?,
     haptics: com.omsingh.beckon.ui.theme.Haptics,
     modifier: Modifier = Modifier,
 ) {
@@ -278,6 +287,7 @@ private fun RemoteContent(
                         RemoteMode.KEYS -> KeyboardTab(state, actions, keyboard, haptics, ui = keyboardUi)
                         RemoteMode.MEDIA -> MediaTab(state, actions, haptics)
                         RemoteMode.QUICK -> QuickTab(quick)
+                        RemoteMode.BOARDS -> InterfacesTab(state, actions, keyboard, haptics, quick, library, interfaces)
                         RemoteMode.LIBRARY -> LibraryTab(library, onCopyToPhone = { library?.copyToPhone(it) })
                     }
                 }
@@ -356,15 +366,17 @@ private fun NotConnected(connection: ConnectionState, onGoToDevices: () -> Unit)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ModeSwitcher(mode: RemoteMode, onSelect: (RemoteMode) -> Unit) {
-    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-        RemoteMode.values().forEachIndexed { index, item ->
-            SegmentedButton(
+    // Six tabs do not fit side by side on a phone, so they scroll.
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        for (item in RemoteMode.values()) {
+            FilterChip(
                 selected = mode == item,
                 onClick = { onSelect(item) },
-                shape = SegmentedButtonDefaults.itemShape(index, RemoteMode.values().size),
-                // With five tabs the labels need the room an icon would take.
-                icon = {},
                 label = { Text(stringResource(item.label), maxLines = 1) },
+                leadingIcon = { Icon(item.icon, contentDescription = null, modifier = Modifier.size(18.dp)) },
             )
         }
     }

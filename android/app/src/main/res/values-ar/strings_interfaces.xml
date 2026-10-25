@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="remote_mode_boards">واجهات</string>
+    <string name="if_cube">المكعب</string>
+    <string name="if_cockpit">القيادة</string>
+    <string name="if_gestures">إيماءات</string>
+    <string name="if_puppet">الدمية</string>
+    <string name="if_fractal">كسيري</string>
+    <string name="cube_type">كتابة</string>
+    <string name="cube_numbers">أرقام</string>
+    <string name="cube_commands">أوامر</string>
+    <string name="cube_phrases">جمل</string>
+    <string name="cockpit_pc">الحاسوب</string>
+    <string name="cockpit_front">في المقدمة</string>
+    <string name="cockpit_front_unavailable">هذا الحاسوب لا يخبر بالبرنامج الأمامي (يعمل مع ويندوز وبرنامج Beckon الجديد).</string>
+    <string name="cockpit_front_none">لا شيء في المقدمة أو لم يرد الحاسوب بعد.</string>
+    <string name="cockpit_controls">التحكم</string>
+    <string name="cockpit_windows">النوافذ</string>
+    <string name="gest_arrows">الأسهم</string>
+    <string name="gest_editing">التحرير</string>
+    <string name="gest_browser">التصفح</string>
+    <string name="gest_hint">اسحب في أي اتجاه</string>
+    <string name="gest_tap">نقرة  %1$s</string>
+    <string name="puppet_hint">أمسك المقبض واسحبه. كلما ابتعد زادت سرعة المؤشر. أفلته ليتوقف.</string>
+    <string name="fractal_back">رجوع</string>
+    <string name="fractal_latin">ABC</string>
+    <string name="fractal_arabic">ع</string>
+    <string name="fractal_forget">نسيان ما تعلّمه</string>
+    <string name="fractal_level_beginner">مجموعات فقط</string>
+    <string name="fractal_level_learning">3 حروف متعلَّمة</string>
+    <string name="fractal_level_familiar">6 حروف متعلَّمة</string>
+</resources>

@@ -69,7 +69,6 @@ import com.omsingh.beckon.core.text.TextBlockResult
 import com.omsingh.beckon.ui.theme.Spacing
 import kotlin.math.PI
 import kotlin.math.cos
-import kotlin.math.min
 import kotlin.math.sin
 
 /** Quick control: the command wheel, leader mode, rhythm taps and the window radar. */
@@ -185,18 +184,18 @@ private fun WheelSection(quick: QuickController) {
 private fun Wheel(entries: List<Pair<String, () -> Unit>>, centre: String, onCentre: (() -> Unit)?) {
     BoxWithConstraints(Modifier.fillMaxWidth().padding(Spacing.sm), contentAlignment = Alignment.Center) {
         val item = 72.dp
-        val side = min(maxWidth, maxHeight.takeIf { it.value.isFinite() } ?: maxWidth).coerceAtMost(340.dp)
-        val radius = (side - item) / 2
+        val side = minOf(maxWidth, if (maxHeight.isFinite) maxHeight else maxWidth, 340.dp)
+        val radius = (side - item) / 2f
         Box(Modifier.size(side), contentAlignment = Alignment.Center) {
             entries.forEachIndexed { i, (label, action) ->
-                val angle = -PI / 2 + 2 * PI * i / entries.size
+                val angle = (-PI / 2 + 2 * PI * i / entries.size).toFloat()
                 Surface(
                     onClick = action,
                     shape = MaterialTheme.shapes.extraLarge,
                     color = MaterialTheme.colorScheme.secondaryContainer,
                     modifier = Modifier
                         .size(item)
-                        .offset(x = radius * cos(angle).toFloat(), y = radius * sin(angle).toFloat()),
+                        .offset(x = radius * cos(angle), y = radius * sin(angle)),
                 ) {
                     Box(Modifier.padding(4.dp), contentAlignment = Alignment.Center) {
                         Text(
@@ -396,7 +395,7 @@ private fun MyCommandsDialog(board: CommandBoard, onDismiss: () -> Unit) {
 // ── Status and confirmation ──────────────────────────────────────────
 
 @Composable
-private fun StatusLine(quick: QuickController) {
+internal fun StatusLine(quick: QuickController) {
     val status by quick.status.collectAsState()
     val text: String? = when (val s = status) {
         QuickStatus.Idle -> null
@@ -447,7 +446,7 @@ private fun StatusLine(quick: QuickController) {
 }
 
 @Composable
-private fun Confirm(quick: QuickController) {
+internal fun Confirm(quick: QuickController) {
     val command by quick.confirming.collectAsState()
     command?.let { c ->
         AlertDialog(

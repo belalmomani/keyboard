@@ -603,9 +603,16 @@ class ConnectionManager internal constructor(
     val sendingText: Boolean get() = textBlocks.busy
 
     /** Turn asking the PC for its front program on or off (on while the keyboard follows it). */
-    fun setActiveWindowTracking(wanted: Boolean) {
-        activeWindowWanted.value = wanted
+    fun setActiveWindowTracking(wanted: Boolean) = requestActiveWindow("typing", wanted)
+
+    /** Several screens may want the front program; it is asked for while any of them ([reason]s) does. */
+    fun requestActiveWindow(reason: String, wanted: Boolean) {
+        val reasons = activeWindowReasons
+        activeWindowReasons = if (wanted) reasons + reason else reasons - reason
+        activeWindowWanted.value = activeWindowReasons.isNotEmpty()
     }
+
+    private var activeWindowReasons: Set<String> = emptySet()
 
     private fun observeActiveWindow() {
         // The list of windows is only true while the PC that gave it is there.

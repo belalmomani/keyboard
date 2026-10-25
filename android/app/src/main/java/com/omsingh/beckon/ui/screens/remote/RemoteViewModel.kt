@@ -185,6 +185,9 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application),
         host = { state.value.host },
     )
 
+    /** The cockpit and the fractal keyboard. */
+    val interfaces = InterfacesController(app = application, manager = manager)
+
     init {
         // The PC is asked for its front program only while the mode follows it.
         viewModelScope.launch {
@@ -199,6 +202,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application),
         manager.setActiveWindowTracking(false)
         library.close()
         quick.close()
+        interfaces.close()
     }
 
     private companion object {

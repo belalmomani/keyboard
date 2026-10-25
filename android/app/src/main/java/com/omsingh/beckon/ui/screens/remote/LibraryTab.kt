@@ -338,7 +338,7 @@ private fun SearchField(value: String, onChange: (String) -> Unit) {
 // ── Sending status ───────────────────────────────────────────────────
 
 @Composable
-private fun SendStatus(controller: LibraryController) {
+internal fun SendStatus(controller: LibraryController) {
     val ui by controller.send.collectAsState()
     when (val s = ui) {
         SendUi.Idle -> Unit
