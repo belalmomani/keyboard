@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.HelpOutline
+import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Bookmarks
 import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.Mouse
@@ -89,6 +90,7 @@ enum class RemoteMode(val icon: ImageVector, val label: Int) {
     PAD(Icons.Rounded.Mouse, R.string.remote_mode_pad),
     KEYS(Icons.Rounded.Keyboard, R.string.remote_mode_keys),
     MEDIA(Icons.Rounded.PlayCircle, R.string.remote_mode_media),
+    QUICK(Icons.Rounded.Bolt, R.string.remote_mode_quick),
     LIBRARY(Icons.Rounded.Bookmarks, R.string.remote_mode_library),
 }
 
@@ -126,6 +128,7 @@ fun RemoteRoute(
         actions = viewModel,
         keyboard = viewModel.keyboard,
         library = viewModel.library,
+        quick = viewModel.quick,
         snackbar = snackbar,
         onGoToDevices = onGoToDevices,
         modifier = modifier,
@@ -142,6 +145,7 @@ fun RemoteScreen(
     modifier: Modifier = Modifier,
     snackbar: SnackbarHostState = remember { SnackbarHostState() },
     library: LibraryController? = null,
+    quick: QuickController? = null,
 ) {
     var mode by rememberSaveable { mutableStateOf(RemoteMode.PAD) }
     val keyboardUi = rememberKeyboardUiState()
@@ -182,6 +186,7 @@ fun RemoteScreen(
                     keyboardUi = keyboardUi,
                     mode = mode,
                     library = library,
+                    quick = quick,
                     haptics = haptics,
                     modifier = contentModifier,
                 )
@@ -251,6 +256,7 @@ private fun RemoteContent(
     keyboardUi: KeyboardUiState,
     mode: RemoteMode,
     library: LibraryController?,
+    quick: QuickController?,
     haptics: com.omsingh.beckon.ui.theme.Haptics,
     modifier: Modifier = Modifier,
 ) {
@@ -271,6 +277,7 @@ private fun RemoteContent(
                         RemoteMode.PAD -> TouchpadTab(state, actions, haptics)
                         RemoteMode.KEYS -> KeyboardTab(state, actions, keyboard, haptics, ui = keyboardUi)
                         RemoteMode.MEDIA -> MediaTab(state, actions, haptics)
+                        RemoteMode.QUICK -> QuickTab(quick)
                         RemoteMode.LIBRARY -> LibraryTab(library, onCopyToPhone = { library?.copyToPhone(it) })
                     }
                 }
@@ -355,8 +362,9 @@ private fun ModeSwitcher(mode: RemoteMode, onSelect: (RemoteMode) -> Unit) {
                 selected = mode == item,
                 onClick = { onSelect(item) },
                 shape = SegmentedButtonDefaults.itemShape(index, RemoteMode.values().size),
-                icon = { SegmentedButtonDefaults.Icon(active = mode == item) { Icon(item.icon, contentDescription = null, modifier = Modifier.width(18.dp)) } },
-                label = { Text(stringResource(item.label)) },
+                // With five tabs the labels need the room an icon would take.
+                icon = {},
+                label = { Text(stringResource(item.label), maxLines = 1) },
             )
         }
     }

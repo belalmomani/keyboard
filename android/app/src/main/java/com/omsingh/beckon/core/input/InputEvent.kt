@@ -90,6 +90,18 @@ sealed interface InputEvent {
     /** Stop typing the long text [requestId], or forget its pieces. */
     data class TextBlockCancel(val requestId: Int) : InputEvent
 
+    // ── Windows on the PC (Wi-Fi only) ─────────────────────────────────
+
+    /** Bring the window [handle] (from the window list) to the front. The PC answers [requestId] with a result. */
+    data class WindowFocus(val requestId: Int, val handle: Long) : InputEvent
+
+    /**
+     * Run one command on the PC and have it say how it went (Wi-Fi only). [kind]: 0 key combination
+     * ([mods] and HID [usage]), 1 media key, 2 volume, 3 system action, 4 lock screen; [usage] then
+     * holds the action's number. The PC answers [requestId] with a result and never runs it twice.
+     */
+    data class RunCommand(val requestId: Int, val kind: Int, val mods: Int, val usage: Int) : InputEvent
+
     // ── Quick launchers / system actions ───────────────────────────────
 
     data class LaunchAction(val action: SystemAction) : InputEvent

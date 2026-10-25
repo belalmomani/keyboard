@@ -22,6 +22,9 @@ import com.omsingh.beckon.core.input.ConnectionTarget
 import com.omsingh.beckon.core.input.FailureReason
 import com.omsingh.beckon.core.input.InputDispatcher
 import com.omsingh.beckon.core.input.InputEvent
+import com.omsingh.beckon.core.commands.CommandRunner
+import com.omsingh.beckon.core.commands.RemoteCall
+import com.omsingh.beckon.core.commands.RunOutcome
 import com.omsingh.beckon.core.media.NowPlayingClient
 import com.omsingh.beckon.core.text.CommandResult
 import com.omsingh.beckon.core.text.TextBlockCodec
@@ -30,6 +33,9 @@ import com.omsingh.beckon.core.text.TextBlockSender
 import com.omsingh.beckon.core.text.TextBlockStage
 import com.omsingh.beckon.core.windows.ActiveWindow
 import com.omsingh.beckon.core.windows.ActiveWindowClient
+import com.omsingh.beckon.core.windows.FocusResult
+import com.omsingh.beckon.core.windows.RemoteWindow
+import com.omsingh.beckon.core.windows.WindowRadar
 import com.omsingh.beckon.core.media.NowPlayingState
 import com.omsingh.beckon.core.trust.DeviceEntry
 import com.omsingh.beckon.core.trust.DeviceList
@@ -186,6 +192,44 @@ class ConnectionManager internal constructor(
     /** The program in front on the PC while something asks for it ([setActiveWindowTracking]), else null. */
     val activeWindow: StateFlow<ActiveWindow?> = activeWindowClient.window
     private val activeWindowWanted = MutableStateFlow(false)
+
+    private val windowRadar = WindowRadar(
+        sendListQuery = wifi::queryWindowList,
+        dispatch = { wifi.dispatch(it) },
+        results = commandResults,
+    )
+
+    /** The windows open on the PC, from the last time they were asked for; null if not asked, or not possible. */
+    val openWindows: StateFlow<List<RemoteWindow>?> = windowRadar.windows
+
+    /** Whether the PC can list its windows and bring one to the front (Windows, over Wi-Fi). */
+    val canSwitchWindows: Boolean
+        get() = connectionState.value is ConnectionState.Connected &&
+            _activeTransport.value == ConnectionState.Transport.WIFI && hostInfo.value.capabilities.windowList
+
+    /** Asks the PC for its open windows. The list arrives in [openWindows]. */
+    fun refreshWindows() {
+        if (canSwitchWindows) windowRadar.refresh()
+    }
+
+    /** Brings a window to the front, and says how it went by what the PC reported. */
+    suspend fun focusWindow(handle: Long): FocusResult {
+        if (!canSwitchWindows) return FocusResult.NoAnswer
+        return windowRadar.focus(handle)
+    }
+
+    private val commandRunner = CommandRunner(dispatch = { wifi.dispatch(it) }, results = commandResults)
+
+    /** Whether the PC runs commands and says how they went (over Wi-Fi, to a PC that offers it). */
+    val canConfirmCommands: Boolean
+        get() = connectionState.value is ConnectionState.Connected &&
+            _activeTransport.value == ConnectionState.Transport.WIFI && hostInfo.value.capabilities.commands
+
+    /** Runs a command and reports what the PC says. [RunOutcome.NoAnswer] when it cannot be asked. */
+    suspend fun runCommand(call: RemoteCall): RunOutcome {
+        if (!canConfirmCommands) return RunOutcome.NoAnswer
+        return commandRunner.run(call)
+    }
 
     // ── Internal bookkeeping ─────────────────────────────────────────
 
@@ -564,6 +608,10 @@ class ConnectionManager internal constructor(
     }
 
     private fun observeActiveWindow() {
+        // The list of windows is only true while the PC that gave it is there.
+        scope.launch {
+            connectionState.collect { state -> if (state !is ConnectionState.Connected) windowRadar.clear() }
+        }
         scope.launch {
             combine(activeWindowWanted, hostInfo, connectionState, _activeTransport) { wanted, info, state, transport ->
                 wanted && info.capabilities.activeWindow && state is ConnectionState.Connected &&
@@ -600,6 +648,7 @@ class ConnectionManager internal constructor(
             is ServerMessage.Host -> Unit // handled by the dispatcher
             is ServerMessage.Result -> commandResults.tryEmit(message.result)
             is ServerMessage.Window -> activeWindowClient.onUpdate(message.window)
+            is ServerMessage.WindowList -> windowRadar.onList(message.windows)
         }
     }
 

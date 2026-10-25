@@ -34,6 +34,18 @@ pub fn active_window() -> Option<beckon_protocol::ActiveWindowInfo> {
     os::active_window()
 }
 
+/// The open windows on this computer, front to back, or none where this system does not let Beckon ask
+/// ([`ACTIVE_WINDOW_SUPPORTED`]). It may take a moment, so it is not for the input thread.
+pub fn open_windows() -> Vec<beckon_protocol::WindowEntry> {
+    os::open_windows()
+}
+
+/// Brings the window `handle` (from [`open_windows`]) to the front. `Ok` only when it is in front; the
+/// error says in plain words why not. May take a moment, so it is not for the input thread.
+pub fn focus_window(handle: u64) -> std::result::Result<(), String> {
+    os::focus_window(handle)
+}
+
 /// How typed text reaches applications on Linux.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TextEntry {

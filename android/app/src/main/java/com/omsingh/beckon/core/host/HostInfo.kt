@@ -22,6 +22,10 @@ data class HostCapabilities(
     val textBlock: Boolean = false,
     /** The PC can say which program is in front (Windows). */
     val activeWindow: Boolean = false,
+    /** The PC can list its open windows and bring one to the front. */
+    val windowList: Boolean = false,
+    /** The PC runs a command (a key combination, a media key) and says how it went. */
+    val commands: Boolean = false,
 )
 
 /** What the server told the phone about itself. */
@@ -43,7 +47,7 @@ data class HostInfo(
  *  - phone to PC: `[0x12]`
  *  - PC to phone: `[0x82][os: u8][capabilities: u8][major: u8][minor: u8][patch: u8]`
  *
- * Capability bits: `0x01` now-playing, `0x02` clipboard, `0x04` long texts, `0x08` window in front. Trailing bytes a newer
+ * Capability bits: `0x01` now-playing, `0x02` clipboard, `0x04` long texts, `0x08` window in front, `0x10` window list, `0x20` confirmed commands. Trailing bytes a newer
  * server may append are ignored, and an unrecognised OS byte decodes as
  * [HostOs.UNKNOWN], so a newer server never breaks an older app.
  */
@@ -56,6 +60,8 @@ object HostInfoCodec {
     private const val CAP_CLIPBOARD = 0x02
     private const val CAP_TEXT_BLOCK = 0x04
     private const val CAP_ACTIVE_WINDOW = 0x08
+    private const val CAP_WINDOW_LIST = 0x10
+    private const val CAP_COMMANDS = 0x20
 
     /** Parses a decrypted server message, or null if it is not a valid host-info reply. */
     fun parse(buf: ByteArray, len: Int): HostInfo? {
@@ -75,6 +81,8 @@ object HostInfoCodec {
                 clipboard = caps and CAP_CLIPBOARD != 0,
                 textBlock = caps and CAP_TEXT_BLOCK != 0,
                 activeWindow = caps and CAP_ACTIVE_WINDOW != 0,
+                windowList = caps and CAP_WINDOW_LIST != 0,
+                commands = caps and CAP_COMMANDS != 0,
             ),
             version = version,
         )

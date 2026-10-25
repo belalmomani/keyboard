@@ -14,7 +14,7 @@ mod windows;
 use crate::access::{AllowError, Block};
 use crate::backend::{InputBackend, Result};
 use crate::BackendOptions;
-use beckon_protocol::ActiveWindowInfo;
+use beckon_protocol::{ActiveWindowInfo, WindowEntry};
 
 pub(crate) fn create(options: &BackendOptions) -> Result<Box<dyn InputBackend>> {
     #[cfg(target_os = "linux")]
@@ -48,6 +48,31 @@ pub(crate) fn active_window() -> Option<ActiveWindowInfo> {
     #[cfg(not(windows))]
     {
         None
+    }
+}
+
+/// The open windows, front to back. Empty where this system cannot say.
+pub(crate) fn open_windows() -> Vec<WindowEntry> {
+    #[cfg(windows)]
+    {
+        windows::open_windows()
+    }
+    #[cfg(not(windows))]
+    {
+        Vec::new()
+    }
+}
+
+/// Brings a window to the front, and says why not when it could not.
+pub(crate) fn focus_window(handle: u64) -> std::result::Result<(), String> {
+    #[cfg(windows)]
+    {
+        windows::focus_window(handle)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = handle;
+        Err("this computer cannot switch windows from Beckon".into())
     }
 }
 

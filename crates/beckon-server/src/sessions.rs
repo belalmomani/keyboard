@@ -4,6 +4,7 @@
 //! This module is pure bookkeeping (no sockets, no clock of its own), so every
 //! rule here is covered by plain unit tests.
 
+use crate::commands::CommandLog;
 use crate::text_block::BlockTracker;
 use beckon_crypto::NoiseTransport;
 use beckon_protocol::{ClientMessage, MouseButtonKind};
@@ -92,6 +93,8 @@ pub struct Session {
     pub held: HeldInputs,
     /// Long texts this phone is sending, and how the finished ones ended.
     pub blocks: BlockTracker,
+    /// The commands this phone has asked for, so that a repeated request is not run twice.
+    pub commands: CommandLog,
 }
 
 impl Session {
@@ -102,6 +105,7 @@ impl Session {
             last_seen: now,
             held: HeldInputs::default(),
             blocks: BlockTracker::default(),
+            commands: CommandLog::default(),
         }
     }
 }

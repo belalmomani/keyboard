@@ -177,6 +177,14 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application),
         setHistoryEnabled = { on -> viewModelScope.launch { settings.update { it.copy(clipboardHistory = on) } } },
     )
 
+    /** The command wheel, leader mode, rhythm taps and the window radar. */
+    val quick = QuickController(
+        app = application,
+        scope = viewModelScope,
+        manager = manager,
+        host = { state.value.host },
+    )
+
     init {
         // The PC is asked for its front program only while the mode follows it.
         viewModelScope.launch {
@@ -190,6 +198,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application),
         manager.setNowPlayingActive(false)
         manager.setActiveWindowTracking(false)
         library.close()
+        quick.close()
     }
 
     private companion object {

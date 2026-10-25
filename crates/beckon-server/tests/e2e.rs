@@ -1279,6 +1279,76 @@ async fn the_window_query_is_answered_and_the_server_says_whether_it_can() {
 }
 
 #[tokio::test]
+async fn open_windows_are_listed_and_a_made_up_handle_is_refused() {
+    let server = TestServer::start(|_| {}).await;
+    let mut client = connected(&server).await;
+
+    client.send(ClientMessage::WindowListQuery).await;
+    let Some(ServerMessage::WindowList(windows)) = client.recv_message().await else {
+        panic!("expected a window list");
+    };
+    if !beckon_platform::ACTIVE_WINDOW_SUPPORTED {
+        assert!(windows.is_empty());
+    }
+
+    // A handle that is in no list is refused, whatever the system would do with it.
+    client
+        .send(ClientMessage::WindowFocus {
+            request_id: 5,
+            handle: 0xDEAD_BEEF_0000,
+        })
+        .await;
+    let Some(ServerMessage::CommandResult {
+        request_id, status, ..
+    }) = client.recv_message().await
+    else {
+        panic!("expected a result");
+    };
+    assert_eq!(request_id, 5);
+    assert_eq!(status, CommandStatus::Rejected);
+}
+
+#[tokio::test]
+async fn a_command_is_run_once_and_a_repeat_gets_the_same_answer_without_running_again() {
+    let server = TestServer::start(|_| {}).await;
+    let mut client = connected(&server).await;
+
+    client.send(ClientMessage::HostInfoQuery).await;
+    let Some(ServerMessage::HostInfo(info)) = client.recv_message().await else {
+        panic!("expected host info");
+    };
+    assert!(info.supports(capabilities::COMMANDS));
+
+    let command = ClientMessage::RunCommand {
+        request_id: 77,
+        command: RemoteCommand::Chord {
+            mods: modifiers::LALT,
+            usage: 0x2B,
+        },
+    };
+    for _ in 0..3 {
+        client.send(command.clone()).await;
+        let Some(ServerMessage::CommandResult {
+            request_id, status, ..
+        }) = client.recv_message().await
+        else {
+            panic!("expected a result");
+        };
+        assert_eq!(request_id, 77);
+        assert_eq!(status, CommandStatus::Done);
+    }
+    let presses = server
+        .calls()
+        .into_iter()
+        .filter(|call| matches!(call, InputCall::Key { usage: 0x2B, .. }))
+        .count();
+    assert_eq!(
+        presses, 2,
+        "one press and one release, however often it was asked"
+    );
+}
+
+#[tokio::test]
 async fn host_info_needs_a_paired_session_like_everything_else() {
     let server = TestServer::start(|c| c.pairing = PairingMode::Closed).await;
     let stranger = Client::connect(&server).await;

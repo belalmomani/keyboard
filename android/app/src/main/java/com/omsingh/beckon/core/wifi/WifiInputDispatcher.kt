@@ -71,6 +71,8 @@ import java.util.concurrent.atomic.AtomicInteger
  *  - TextChunk    `[13][u32 id][u16 index][u16 total][u16 length][utf-8]`
  *  - ActiveWinQ   `[14]`
  *  - TextCancel   `[15][u32 id]`
+ *  - WindowFocus  `[17][u32 id][u64 handle]`
+ *  - RunCommand   `[18][u32 id][u8 kind][u8 mods][u16 usage]`
  */
 class WifiInputDispatcher(
     private val identity: ClientIdentity,
@@ -231,6 +233,18 @@ class WifiInputDispatcher(
                 plain.put(MSG_TEXT_BLOCK_CANCEL)
                 plain.putInt(event.requestId)
             }
+            is InputEvent.WindowFocus -> {
+                plain.put(MSG_WINDOW_FOCUS)
+                plain.putInt(event.requestId)
+                plain.putLong(event.handle)
+            }
+            is InputEvent.RunCommand -> {
+                plain.put(MSG_RUN_COMMAND)
+                plain.putInt(event.requestId)
+                plain.put(event.kind.toByte())
+                plain.put(event.mods.toByte())
+                plain.putShort(event.usage.toShort())
+            }
         }
         flushPlain(link)
     }
@@ -291,6 +305,11 @@ class WifiInputDispatcher(
     /** Asks the PC which program is in front. The answer arrives through [onServerMessage]. */
     fun queryActiveWindow() {
         link?.let { sendSingleByte(it, MSG_ACTIVE_WINDOW_Q) }
+    }
+
+    /** Asks the PC which windows are open. The answer arrives through [onServerMessage]. */
+    fun queryWindowList() {
+        link?.let { sendSingleByte(it, MSG_WINDOW_LIST_Q) }
     }
 
     // ── Connecting ───────────────────────────────────────────────────
@@ -638,6 +657,9 @@ class WifiInputDispatcher(
         const val MSG_NOW_PLAYING_Q: Byte = 0x11
         const val MSG_TEXT_BLOCK_CHUNK: Byte = 0x13
         const val MSG_ACTIVE_WINDOW_Q: Byte = 0x14
+        const val MSG_WINDOW_LIST_Q: Byte = 0x16
+        const val MSG_WINDOW_FOCUS: Byte = 0x17
+        const val MSG_RUN_COMMAND: Byte = 0x18
         const val MSG_TEXT_BLOCK_CANCEL: Byte = 0x15
 
         // The protocol's limits for long texts (`beckon-protocol`), shared with TextBlockCodec.

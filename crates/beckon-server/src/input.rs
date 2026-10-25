@@ -5,9 +5,10 @@
 //! stall packet reception, and would let events from different packets race.
 //! Instead every input message is queued here and applied strictly in order.
 
+use crate::commands::run_command;
 use crate::text_block::{plan_typing, run_steps, BlockOutcome, Step};
 use beckon_platform::{InputBackend, PlatformError};
-use beckon_protocol::{ClientMessage, CommandStatus};
+use beckon_protocol::{ClientMessage, CommandStatus, RemoteCommand};
 use std::collections::HashMap;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::AtomicBool;
@@ -25,6 +26,11 @@ enum Command {
         text: String,
         cancel: Arc<AtomicBool>,
         reply: oneshot::Sender<BlockOutcome>,
+    },
+    /// One command from the phone: run it, then say how it went.
+    Run {
+        command: RemoteCommand,
+        reply: oneshot::Sender<CommandStatus>,
     },
     Stop,
 }
@@ -76,6 +82,17 @@ impl InputWorker {
                             }
                             // The phone may have gone away while it was typed.
                             let _ = reply.send(outcome);
+                            continue;
+                        }
+                        Command::Run { command, reply } => {
+                            let status = catch_unwind(AssertUnwindSafe(|| {
+                                run_command(backend.as_mut(), command)
+                            }))
+                            .unwrap_or(CommandStatus::Failed);
+                            if status == CommandStatus::Failed {
+                                warn!("input: a command failed");
+                            }
+                            let _ = reply.send(status);
                             continue;
                         }
                         Command::Stop => break,
@@ -132,6 +149,16 @@ impl InputWorker {
         outcome
     }
 
+    /// Runs a command, in order with everything sent before it, and says how it went. If the input
+    /// thread has stopped, the receiver ends without an answer.
+    pub fn run(&self, command: RemoteCommand) -> oneshot::Receiver<CommandStatus> {
+        let (reply, status) = oneshot::channel();
+        if self.tx.send(Command::Run { command, reply }).is_err() {
+            error!("the input thread has stopped; dropping a command");
+        }
+        status
+    }
+
     pub fn send_all(&self, messages: impl IntoIterator<Item = ClientMessage>) {
         for message in messages {
             self.send(message);
@@ -185,6 +212,9 @@ pub fn apply(
         | ClientMessage::NowPlayingQuery
         | ClientMessage::HostInfoQuery
         | ClientMessage::ActiveWindowQuery
+        | ClientMessage::WindowListQuery
+        | ClientMessage::WindowFocus { .. }
+        | ClientMessage::RunCommand { .. }
         | ClientMessage::TextBlockChunk { .. }
         | ClientMessage::TextBlockCancel { .. } => return None,
     })
@@ -329,6 +359,11 @@ mod tests {
             ClientMessage::NowPlayingQuery,
             ClientMessage::HostInfoQuery,
             ClientMessage::ActiveWindowQuery,
+            ClientMessage::WindowListQuery,
+            ClientMessage::WindowFocus {
+                request_id: 1,
+                handle: 2,
+            },
             ClientMessage::TextBlockCancel { request_id: 1 },
             ClientMessage::TextBlockChunk {
                 request_id: 1,

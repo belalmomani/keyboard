@@ -187,4 +187,47 @@ class ServerMessageTest {
     fun `a window reply with nothing in front is empty`() {
         assertEquals(ServerMessage.Window(null), parse(byteArrayOf(0x84.toByte(), 0)))
     }
+
+    private fun windowList(vararg windows: Triple<Long, String, String>, foreground: Int = 0): ByteArray {
+        val out = ByteArrayOutputStream()
+        out.write(0x85)
+        out.write(windows.size)
+        windows.forEachIndexed { i, (handle, process, title) ->
+            out.write(ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(handle).array())
+            out.write(if (i == foreground) 1 else 0)
+            for (field in listOf(process, title)) {
+                val b = field.toByteArray(Charsets.UTF_8)
+                out.write(b.size)
+                out.write(b)
+            }
+        }
+        return out.toByteArray()
+    }
+
+    @Test
+    fun `a window list carries every window with its handle and which is in front`() {
+        val message = parse(windowList(Triple(0x1122334455L, "Code.exe", "main.rs"), Triple(7L, "WINWORD.EXE", "تقرير.docx"))) as ServerMessage.WindowList
+        assertEquals(2, message.windows.size)
+        assertEquals(0x1122334455L, message.windows[0].handle)
+        assertTrue(message.windows[0].foreground)
+        assertFalse(message.windows[1].foreground)
+        assertEquals("تقرير.docx", message.windows[1].title)
+        assertEquals("WINWORD", message.windows[1].program)
+    }
+
+    @Test
+    fun `an empty window list is valid`() {
+        assertEquals(ServerMessage.WindowList(emptyList()), parse(windowList()))
+    }
+
+    @Test
+    fun `a window list cut anywhere is rejected, never half read`() {
+        val bytes = windowList(Triple(1L, "a.exe", "title"), Triple(2L, "b.exe", "other"))
+        for (cut in 1 until bytes.size) assertNull(parse(bytes, cut))
+    }
+
+    @Test
+    fun `a window list claiming too many windows is rejected`() {
+        assertNull(parse(byteArrayOf(0x85.toByte(), 50)))
+    }
 }

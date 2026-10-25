@@ -44,12 +44,26 @@ pub const MSG_TYPE_HOST_INFO_Q: u8 = 0x12;
 pub const MSG_TYPE_TEXT_BLOCK_CHUNK: u8 = 0x13;
 pub const MSG_TYPE_ACTIVE_WINDOW_Q: u8 = 0x14;
 pub const MSG_TYPE_TEXT_BLOCK_CANCEL: u8 = 0x15;
+/// Asks for the list of open windows. Added in 2.1: older servers ignore it.
+pub const MSG_TYPE_WINDOW_LIST_Q: u8 = 0x16;
+/// Brings one window to the front (`[u32 request id][u64 window handle]`), answered with a result.
+pub const MSG_TYPE_WINDOW_FOCUS: u8 = 0x17;
+/// Runs one command and says how it went (`[u32 request id][u8 kind][u8 mods][u16 usage]`), see [`RemoteCommand`].
+pub const MSG_TYPE_RUN_COMMAND: u8 = 0x18;
 
 pub const MSG_TYPE_CLIPBOARD_DATA: u8 = 0x80;
 pub const MSG_TYPE_NOW_PLAYING: u8 = 0x81;
 pub const MSG_TYPE_HOST_INFO: u8 = 0x82;
 pub const MSG_TYPE_COMMAND_RESULT: u8 = 0x83;
 pub const MSG_TYPE_ACTIVE_WINDOW: u8 = 0x84;
+pub const MSG_TYPE_WINDOW_LIST: u8 = 0x85;
+
+/// Most windows one list carries. A list is one datagram, and has to stay well under a Wi-Fi path MTU.
+pub const MAX_WINDOW_LIST_ENTRIES: usize = 12;
+/// Longest program name in a window list, in UTF-8 bytes.
+pub const MAX_WINDOW_LIST_PROCESS_BYTES: usize = 32;
+/// Longest window title in a window list, in UTF-8 bytes.
+pub const MAX_WINDOW_LIST_TITLE_BYTES: usize = 48;
 
 /// Largest piece of a long text carried by one datagram. A transport datagram has to stay well under
 /// a Wi-Fi path MTU (about 1.4 KB) or it is fragmented and routinely lost.
@@ -220,6 +234,10 @@ pub mod capabilities {
     pub const TEXT_BLOCK: u8 = 0x04;
     /// The server can say which program and window is in front (`ActiveWindowQuery`).
     pub const ACTIVE_WINDOW: u8 = 0x08;
+    /// The server can list open windows and bring one to the front (`WindowListQuery`, `WindowFocus`).
+    pub const WINDOW_LIST: u8 = 0x10;
+    /// The server runs a command and confirms the result (`RunCommand`).
+    pub const COMMANDS: u8 = 0x20;
 }
 
 /// What a server tells a phone about itself.
@@ -306,6 +324,58 @@ pub struct ActiveWindowInfo {
     pub title: String,
 }
 
+/// A command the phone can have the PC run and report on (`ClientMessage::RunCommand`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RemoteCommand {
+    /// Press `usage` (a HID key code) with `mods` (see [`modifiers`]) held, then let go.
+    Chord {
+        mods: u8,
+        usage: u16,
+    },
+    Media(MediaAction),
+    Volume(VolumeDirection),
+    System(SystemAction),
+    LockScreen,
+}
+
+impl RemoteCommand {
+    fn parts(self) -> (u8, u8, u16) {
+        match self {
+            Self::Chord { mods, usage } => (0, mods, usage),
+            Self::Media(action) => (1, 0, action as u16),
+            Self::Volume(direction) => (2, 0, direction as u16),
+            Self::System(action) => (3, 0, action as u16),
+            Self::LockScreen => (4, 0, 0),
+        }
+    }
+
+    fn from_parts(kind: u8, mods: u8, usage: u16) -> Result<Self, ProtocolError> {
+        let small =
+            |value: u16| u8::try_from(value).map_err(|_| ProtocolError::InvalidEnumValue(0xFF));
+        match kind {
+            0 => Ok(Self::Chord { mods, usage }),
+            1 => Ok(Self::Media(MediaAction::try_from(small(usage)?)?)),
+            2 => Ok(Self::Volume(VolumeDirection::try_from(small(usage)?)?)),
+            3 => Ok(Self::System(SystemAction::try_from(small(usage)?)?)),
+            4 => Ok(Self::LockScreen),
+            other => Err(ProtocolError::InvalidEnumValue(other)),
+        }
+    }
+}
+
+/// One open window in a [`ServerMessage::WindowList`].
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct WindowEntry {
+    /// The system's handle for the window, to be sent back in `WindowFocus`. Only good while the window lives.
+    pub handle: u64,
+    /// The program's file name, such as `Code.exe`.
+    pub process: String,
+    /// The window's title, clipped. Only ever sent when asked for, and never kept.
+    pub title: String,
+    /// Whether this is the window in front.
+    pub foreground: bool,
+}
+
 /// The longest prefix of `text` that is at most `max_bytes` of UTF-8, never cut inside a character.
 pub fn truncate_utf8(text: &str, max_bytes: usize) -> &str {
     let mut end = text.len().min(max_bytes);
@@ -379,6 +449,19 @@ pub enum ClientMessage {
         request_id: u32,
     },
     ActiveWindowQuery,
+    /// Ask which windows are open.
+    WindowListQuery,
+    /// Bring the window with this handle to the front. Answered with a `CommandResult` for `request_id`.
+    WindowFocus {
+        request_id: u32,
+        handle: u64,
+    },
+    /// Run `command` and answer with a `CommandResult` for `request_id` once the system has taken it.
+    /// The same `request_id` sent again is answered again and not run again.
+    RunCommand {
+        request_id: u32,
+        command: RemoteCommand,
+    },
 }
 
 impl ClientMessage {
@@ -485,6 +568,25 @@ impl ClientMessage {
             }
             Self::ActiveWindowQuery => {
                 buf.put_u8(MSG_TYPE_ACTIVE_WINDOW_Q);
+            }
+            Self::WindowListQuery => {
+                buf.put_u8(MSG_TYPE_WINDOW_LIST_Q);
+            }
+            Self::WindowFocus { request_id, handle } => {
+                buf.put_u8(MSG_TYPE_WINDOW_FOCUS);
+                buf.put_u32_le(*request_id);
+                buf.put_u64_le(*handle);
+            }
+            Self::RunCommand {
+                request_id,
+                command,
+            } => {
+                let (kind, mods, usage) = command.parts();
+                buf.put_u8(MSG_TYPE_RUN_COMMAND);
+                buf.put_u32_le(*request_id);
+                buf.put_u8(kind);
+                buf.put_u8(mods);
+                buf.put_u16_le(usage);
             }
         }
         Ok(())
@@ -665,6 +767,35 @@ impl ClientMessage {
                 })
             }
             MSG_TYPE_ACTIVE_WINDOW_Q => Ok(Self::ActiveWindowQuery),
+            MSG_TYPE_WINDOW_LIST_Q => Ok(Self::WindowListQuery),
+            MSG_TYPE_WINDOW_FOCUS => {
+                if buf.len() < 12 {
+                    return Err(ProtocolError::BufferTooShort {
+                        expected: 12,
+                        actual: buf.len(),
+                    });
+                }
+                Ok(Self::WindowFocus {
+                    request_id: buf.get_u32_le(),
+                    handle: buf.get_u64_le(),
+                })
+            }
+            MSG_TYPE_RUN_COMMAND => {
+                if buf.len() < 8 {
+                    return Err(ProtocolError::BufferTooShort {
+                        expected: 8,
+                        actual: buf.len(),
+                    });
+                }
+                let request_id = buf.get_u32_le();
+                let kind = buf.get_u8();
+                let mods = buf.get_u8();
+                let usage = buf.get_u16_le();
+                Ok(Self::RunCommand {
+                    request_id,
+                    command: RemoteCommand::from_parts(kind, mods, usage)?,
+                })
+            }
             other => Err(ProtocolError::UnknownMessageType(other)),
         }
     }
@@ -685,6 +816,8 @@ pub enum ServerMessage {
     /// The program and window in front, or `None` when the server cannot tell (nothing is in front, or this
     /// system does not allow asking).
     ActiveWindow(Option<ActiveWindowInfo>),
+    /// The open windows, the one in front marked, at most [`MAX_WINDOW_LIST_ENTRIES`]. Longer lists are cut.
+    WindowList(Vec<WindowEntry>),
 }
 
 impl ServerMessage {
@@ -766,6 +899,22 @@ impl ServerMessage {
                 buf.put_u32_le(*request_id);
                 buf.put_u8(*status as u8);
                 buf.put_u32_le(*value);
+                Ok(())
+            }
+            Self::WindowList(windows) => {
+                buf.put_u8(MSG_TYPE_WINDOW_LIST);
+                let shown = &windows[..windows.len().min(MAX_WINDOW_LIST_ENTRIES)];
+                buf.put_u8(shown.len() as u8);
+                for window in shown {
+                    buf.put_u64_le(window.handle);
+                    buf.put_u8(u8::from(window.foreground));
+                    let process = truncate_utf8(&window.process, MAX_WINDOW_LIST_PROCESS_BYTES);
+                    buf.put_u8(process.len() as u8);
+                    buf.put_slice(process.as_bytes());
+                    let title = truncate_utf8(&window.title, MAX_WINDOW_LIST_TITLE_BYTES);
+                    buf.put_u8(title.len() as u8);
+                    buf.put_slice(title.as_bytes());
+                }
                 Ok(())
             }
             Self::ActiveWindow(window) => {
@@ -927,6 +1076,47 @@ impl ServerMessage {
                     process,
                     title,
                 })))
+            }
+            MSG_TYPE_WINDOW_LIST => {
+                let short = |actual: usize, expected: usize| ProtocolError::BufferTooShort {
+                    expected,
+                    actual,
+                };
+                if buf.is_empty() {
+                    return Err(short(0, 1));
+                }
+                let count = buf.get_u8() as usize;
+                if count > MAX_WINDOW_LIST_ENTRIES {
+                    return Err(short(count, MAX_WINDOW_LIST_ENTRIES));
+                }
+                let mut windows = Vec::with_capacity(count);
+                for _ in 0..count {
+                    if buf.len() < 10 {
+                        return Err(short(buf.len(), 10));
+                    }
+                    let handle = buf.get_u64_le();
+                    let foreground = buf.get_u8() & 1 == 1;
+                    let mut fields = [String::new(), String::new()];
+                    for field in &mut fields {
+                        if buf.is_empty() {
+                            return Err(short(0, 1));
+                        }
+                        let len = buf.get_u8() as usize;
+                        if buf.len() < len {
+                            return Err(short(buf.len(), len));
+                        }
+                        *field = String::from_utf8(buf[..len].to_vec())?;
+                        buf.advance(len);
+                    }
+                    let [process, title] = fields;
+                    windows.push(WindowEntry {
+                        handle,
+                        process,
+                        title,
+                        foreground,
+                    });
+                }
+                Ok(Self::WindowList(windows))
             }
             other => Err(ProtocolError::UnknownMessageType(other)),
         }
@@ -1423,5 +1613,112 @@ mod tests {
             acc | bit
         });
         assert_eq!(combined, 0x0F);
+    }
+
+    #[test]
+    fn window_list_queries_roundtrip() {
+        let buf = encode_client(&ClientMessage::WindowListQuery);
+        assert_eq!(
+            ClientMessage::decode(&buf).unwrap(),
+            ClientMessage::WindowListQuery
+        );
+        let focus = ClientMessage::WindowFocus {
+            request_id: 9,
+            handle: 0x0123_4567_89AB_CDEF,
+        };
+        let buf = encode_client(&focus);
+        assert_eq!(ClientMessage::decode(&buf).unwrap(), focus);
+        assert!(ClientMessage::decode(&buf[..buf.len() - 1]).is_err());
+    }
+
+    #[test]
+    fn run_command_roundtrips_for_every_kind() {
+        let commands = [
+            RemoteCommand::Chord {
+                mods: modifiers::LCTRL | modifiers::LSHIFT,
+                usage: 0x1B,
+            },
+            RemoteCommand::Media(MediaAction::Next),
+            RemoteCommand::Volume(VolumeDirection::Mute),
+            RemoteCommand::System(SystemAction::TaskView),
+            RemoteCommand::LockScreen,
+        ];
+        for command in commands {
+            let message = ClientMessage::RunCommand {
+                request_id: 0xDEAD_BEEF,
+                command,
+            };
+            let buf = encode_client(&message);
+            assert_eq!(buf.len(), 9);
+            assert_eq!(ClientMessage::decode(&buf).unwrap(), message);
+            assert!(ClientMessage::decode(&buf[..buf.len() - 1]).is_err());
+        }
+    }
+
+    #[test]
+    fn run_command_with_an_unknown_kind_or_value_is_refused() {
+        let mut buf = BytesMut::new();
+        buf.put_u8(MSG_TYPE_RUN_COMMAND);
+        buf.put_u32_le(1);
+        buf.put_u8(9);
+        buf.put_u8(0);
+        buf.put_u16_le(0);
+        assert!(ClientMessage::decode(&buf).is_err());
+
+        let mut buf = BytesMut::new();
+        buf.put_u8(MSG_TYPE_RUN_COMMAND);
+        buf.put_u32_le(1);
+        buf.put_u8(1); // media
+        buf.put_u8(0);
+        buf.put_u16_le(0x0101); // not a media action, and not a byte
+        assert!(ClientMessage::decode(&buf).is_err());
+    }
+
+    fn entry(n: u64, process: &str, title: &str) -> WindowEntry {
+        WindowEntry {
+            handle: n,
+            process: process.into(),
+            title: title.into(),
+            foreground: n == 1,
+        }
+    }
+
+    #[test]
+    fn window_list_roundtrips_with_arabic_titles() {
+        let list = ServerMessage::WindowList(vec![
+            entry(1, "Code.exe", "main.rs"),
+            entry(2, "WINWORD.EXE", "تقرير الشهر.docx"),
+        ]);
+        let mut buf = BytesMut::new();
+        list.encode(&mut buf).unwrap();
+        assert_eq!(ServerMessage::decode(&buf).unwrap(), list);
+    }
+
+    #[test]
+    fn window_list_is_cut_to_fit_one_datagram() {
+        let many: Vec<WindowEntry> = (0..40)
+            .map(|n| entry(n, &"p".repeat(100), &"ع".repeat(100)))
+            .collect();
+        let mut buf = BytesMut::new();
+        ServerMessage::WindowList(many).encode(&mut buf).unwrap();
+        assert!(buf.len() <= 1200, "{} bytes", buf.len());
+        let ServerMessage::WindowList(decoded) = ServerMessage::decode(&buf).unwrap() else {
+            panic!("not a list");
+        };
+        assert_eq!(decoded.len(), MAX_WINDOW_LIST_ENTRIES);
+        // Cut inside no character: every title is still valid text of whole letters.
+        assert!(decoded.iter().all(|w| w.title.chars().all(|c| c == 'ع')));
+        assert!(decoded[0].title.len() <= MAX_WINDOW_LIST_TITLE_BYTES);
+    }
+
+    #[test]
+    fn a_damaged_window_list_is_rejected() {
+        let list = ServerMessage::WindowList(vec![entry(1, "Code.exe", "main.rs")]);
+        let mut buf = BytesMut::new();
+        list.encode(&mut buf).unwrap();
+        for cut in 1..buf.len() {
+            assert!(ServerMessage::decode(&buf[..cut]).is_err(), "cut at {cut}");
+        }
+        assert!(ServerMessage::decode(&[MSG_TYPE_WINDOW_LIST, 200]).is_err());
     }
 }

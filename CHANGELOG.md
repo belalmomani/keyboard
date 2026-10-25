@@ -10,6 +10,14 @@ All notable changes are listed here, newest first. The format follows [Keep a Ch
 - **Saved phrases.** A Library tab with folders, favourites, search that understands Arabic spelling variants, and sending to the PC. Saved on the phone only.
 - **Clipboard history.** Off until turned on. Kept on the phone only, searchable, with pinning. Text that looks like a password, key or card number is never kept, and turning it off deletes the history.
 - **Typing modes.** General, Code, Chat, Document and Search change the phone keyboard's capitals and suggestions. In Auto the mode follows the program in front on a Windows PC (the program name only; window titles are not kept).
+- **Control tab (quick control).**
+  - A command wheel with groups you can open, customised by you: add, remove and reorder commands, make your own shortcuts and saved texts.
+  - Leader mode: press Leader, then the keys that lead to a command; the keys that can follow are shown as buttons.
+  - Rhythm: short and long taps on a pad run commands you chose.
+  - Windows: lists the windows open on a Windows PC and brings the one you tap to the front.
+  - Over Wi-Fi to the new PC program, the PC says how every command went (done, refused by Windows, or no answer) and never runs a repeated request twice. Over Bluetooth, or to an older PC program, the app says only that a command was sent.
+  - Commands that can close things or run lines (lock, Alt+F4, Delete, texts with line breaks) ask first.
+- The wheel is flat (2D); there is no 3D wheel.
 - Test builds workflow: run it by hand to get a debug APK and the Windows programs.
 
 ## [2.0.0] - 2026-10-18

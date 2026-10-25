@@ -167,7 +167,8 @@ class HidInputTranslator(
             // A keyboard and mouse cannot carry the clipboard.
             InputEvent.ClipboardGet, is InputEvent.ClipboardSet -> Unit
             // Long texts need the PC's confirmation, which a Bluetooth keyboard cannot give.
-            is InputEvent.TextBlockChunk, is InputEvent.TextBlockCancel -> Unit
+            is InputEvent.TextBlockChunk, is InputEvent.TextBlockCancel, is InputEvent.WindowFocus,
+            is InputEvent.RunCommand -> Unit
         }
     }
 

@@ -5,6 +5,7 @@ import com.omsingh.beckon.core.host.HostInfoCodec
 import com.omsingh.beckon.core.media.NowPlayingState
 import com.omsingh.beckon.core.text.CommandResult
 import com.omsingh.beckon.core.windows.ActiveWindow
+import com.omsingh.beckon.core.windows.RemoteWindow
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -22,6 +23,9 @@ sealed interface ServerMessage {
 
     /** The program and window in front on the PC, or null when the PC could not say. */
     data class Window(val window: ActiveWindow?) : ServerMessage
+
+    /** The windows open on the PC, the one in front marked. */
+    data class WindowList(val windows: List<RemoteWindow>) : ServerMessage
 }
 
 /**
@@ -32,6 +36,7 @@ sealed interface ServerMessage {
  *  - `[0x82]...` host info (see [HostInfoCodec])
  *  - `[0x83][u32 id][u8 status][u32 value]` result of a long text
  *  - `[0x84][u8 present]{[u8 length][utf-8]}x2` window in front: program, then title
+ *  - `[0x85][u8 count]{[u64 handle][u8 flags]{[u8 length][utf-8]}x2}xcount` open windows: program, then title
  *
  * Anything malformed, truncated or unknown yields null and is ignored: a packet
  * that fails to parse must never be able to crash the receive loop.
@@ -41,6 +46,8 @@ object ServerMessages {
     const val NOW_PLAYING: Byte = 0x81.toByte()
     const val COMMAND_RESULT: Byte = 0x83.toByte()
     const val ACTIVE_WINDOW: Byte = 0x84.toByte()
+    const val WINDOW_LIST: Byte = 0x85.toByte()
+    private const val MAX_WINDOWS = 12
 
     private const val NOW_PLAYING_FIXED = 1 + 1 + 8 + 8
     private const val FLAG_PLAYING = 0x01
@@ -53,6 +60,7 @@ object ServerMessages {
             HostInfoCodec.MSG_HOST_INFO -> HostInfoCodec.parse(buf, len)?.let { ServerMessage.Host(it) }
             COMMAND_RESULT -> parseResult(buf, len)
             ACTIVE_WINDOW -> parseWindow(buf, len)
+            WINDOW_LIST -> parseWindowList(buf, len)
             else -> null
         }
     }
@@ -81,6 +89,31 @@ object ServerMessages {
             at += n
         }
         return ServerMessage.Window(ActiveWindow(process = fields[0], title = fields[1]))
+    }
+
+    private fun parseWindowList(buf: ByteArray, len: Int): ServerMessage? {
+        if (len < 2) return null
+        val count = buf[1].toInt() and 0xFF
+        if (count > MAX_WINDOWS) return null
+        var at = 2
+        val windows = ArrayList<RemoteWindow>(count)
+        repeat(count) {
+            if (at + 10 > len) return null
+            val handle = ByteBuffer.wrap(buf, at, 8).order(ByteOrder.LITTLE_ENDIAN).long
+            val foreground = buf[at + 8].toInt() and 1 == 1
+            at += 9
+            val fields = ArrayList<String>(2)
+            repeat(2) {
+                if (at >= len) return null
+                val n = buf[at].toInt() and 0xFF
+                at += 1
+                if (at + n > len) return null
+                fields += String(buf, at, n, Charsets.UTF_8)
+                at += n
+            }
+            windows += RemoteWindow(handle, fields[0], fields[1], foreground)
+        }
+        return ServerMessage.WindowList(windows)
     }
 
     private fun parseClipboard(buf: ByteArray, len: Int): ServerMessage? {

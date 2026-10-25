@@ -1,6 +1,7 @@
 //! The UDP server: discovery, pairing, encrypted sessions and input dispatch.
 
 use crate::clipboard::{truncate_to_char_boundary, ClipboardFactory, ClipboardHandle};
+use crate::commands::Begin;
 use crate::discovery;
 use crate::input::InputWorker;
 use crate::invite::{self, Invite};
@@ -588,7 +589,86 @@ async fn transport(shared: &Arc<Shared>, packet: &[u8], src: SocketAddr) {
                 send_reply(&shared, src, &ServerMessage::ActiveWindow(window)).await;
             });
         }
+        ClientMessage::WindowListQuery => {
+            // Like the front-window question: asked of the system off the receive loop, answered only to
+            // the phone that asked, and nothing is kept.
+            let shared = Arc::clone(shared);
+            tokio::spawn(async move {
+                let windows = tokio::task::spawn_blocking(beckon_platform::open_windows)
+                    .await
+                    .unwrap_or_default();
+                send_reply(&shared, src, &ServerMessage::WindowList(windows)).await;
+            });
+        }
+        ClientMessage::RunCommand {
+            request_id,
+            command,
+        } => {
+            let begin = {
+                let mut state = shared.state.lock().await;
+                match state.sessions.get_mut(&src) {
+                    Some(session) => session.commands.begin(request_id),
+                    None => return,
+                }
+            };
+            let result = move |status: CommandStatus| ServerMessage::CommandResult {
+                request_id,
+                status,
+                value: 0,
+            };
+            match begin {
+                Begin::InFlight => {}
+                Begin::Repeat(status) => send_reply(shared, src, &result(status)).await,
+                Begin::Run => {
+                    let outcome = shared.input.run(command);
+                    let shared = Arc::clone(shared);
+                    tokio::spawn(async move {
+                        // The input thread is gone: nothing was done that anyone can vouch for.
+                        let status = outcome.await.unwrap_or(CommandStatus::Failed);
+                        {
+                            let mut state = shared.state.lock().await;
+                            if let Some(session) = state.sessions.get_mut(&src) {
+                                session.commands.finish(request_id, status);
+                            }
+                        }
+                        send_reply(&shared, src, &result(status)).await;
+                    });
+                }
+            }
+        }
+        ClientMessage::WindowFocus { request_id, handle } => {
+            let shared = Arc::clone(shared);
+            tokio::spawn(async move {
+                let status = tokio::task::spawn_blocking(move || focus_listed_window(handle))
+                    .await
+                    .unwrap_or(CommandStatus::Failed);
+                let result = ServerMessage::CommandResult {
+                    request_id,
+                    status,
+                    value: 0,
+                };
+                send_reply(&shared, src, &result).await;
+            });
+        }
         other => shared.input.send(other),
+    }
+}
+
+/// Brings `handle` to the front, but only if it is one of the windows Beckon lists: a phone cannot name an
+/// arbitrary handle. `Done` only when the window is in front afterwards.
+fn focus_listed_window(handle: u64) -> CommandStatus {
+    if !beckon_platform::open_windows()
+        .iter()
+        .any(|window| window.handle == handle)
+    {
+        return CommandStatus::Rejected;
+    }
+    match beckon_platform::focus_window(handle) {
+        Ok(()) => CommandStatus::Done,
+        Err(reason) => {
+            tracing::debug!("window not brought to the front: {reason}");
+            CommandStatus::Failed
+        }
     }
 }
 
@@ -662,9 +742,9 @@ pub fn host_info() -> HostInfo {
 /// The optional features this server offers. Long texts work everywhere input does; the window in
 /// front can only be asked for on Windows so far, and a phone must not be told otherwise.
 fn advertised_capabilities() -> u8 {
-    let mut caps = capabilities::CLIPBOARD | capabilities::TEXT_BLOCK;
+    let mut caps = capabilities::CLIPBOARD | capabilities::TEXT_BLOCK | capabilities::COMMANDS;
     if beckon_platform::ACTIVE_WINDOW_SUPPORTED {
-        caps |= capabilities::ACTIVE_WINDOW;
+        caps |= capabilities::ACTIVE_WINDOW | capabilities::WINDOW_LIST;
     }
     caps
 }
@@ -751,6 +831,10 @@ mod tests {
             info.supports(capabilities::ACTIVE_WINDOW),
             beckon_platform::ACTIVE_WINDOW_SUPPORTED,
             "only advertised where it can be answered"
+        );
+        assert_eq!(
+            info.supports(capabilities::WINDOW_LIST),
+            beckon_platform::ACTIVE_WINDOW_SUPPORTED
         );
         assert!(
             !info.supports(capabilities::NOW_PLAYING),

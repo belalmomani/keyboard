@@ -3,6 +3,7 @@
 //! wrapper that adds the command line, logging and console.
 
 pub mod clipboard;
+pub mod commands;
 pub mod console;
 pub mod discovery;
 pub mod input;

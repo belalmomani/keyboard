@@ -3,7 +3,7 @@
 use crate::backend::{InputBackend, PlatformError, Result};
 use crate::keymap::modifier_usages;
 use beckon_protocol::{
-    ActiveWindowInfo, MediaAction, MouseButtonKind, SystemAction, VolumeDirection,
+    ActiveWindowInfo, MediaAction, MouseButtonKind, SystemAction, VolumeDirection, WindowEntry,
 };
 use std::mem::size_of;
 use windows_sys::Win32::Foundation::GetLastError;
@@ -20,6 +20,21 @@ extern "system" {
     fn GetForegroundWindow() -> isize;
     fn GetWindowThreadProcessId(hwnd: isize, process_id: *mut u32) -> u32;
     fn GetWindowTextW(hwnd: isize, text: *mut u16, max_count: i32) -> i32;
+    fn EnumWindows(callback: unsafe extern "system" fn(isize, isize) -> i32, lparam: isize) -> i32;
+    fn IsWindowVisible(hwnd: isize) -> i32;
+    fn IsWindow(hwnd: isize) -> i32;
+    fn IsIconic(hwnd: isize) -> i32;
+    fn GetWindow(hwnd: isize, command: u32) -> isize;
+    fn GetWindowLongW(hwnd: isize, index: i32) -> i32;
+    fn ShowWindow(hwnd: isize, command: i32) -> i32;
+    fn SetForegroundWindow(hwnd: isize) -> i32;
+    fn BringWindowToTop(hwnd: isize) -> i32;
+    fn keybd_event(vk: u8, scan: u8, flags: u32, extra: usize);
+}
+
+#[link(name = "dwmapi")]
+extern "system" {
+    fn DwmGetWindowAttribute(hwnd: isize, attribute: u32, value: *mut u32, size: u32) -> i32;
 }
 
 #[link(name = "kernel32")]
@@ -89,6 +104,111 @@ pub(crate) fn active_window() -> Option<ActiveWindowInfo> {
         }
         Some(ActiveWindowInfo { process, title })
     }
+}
+
+/// How many windows are looked through at most; a desktop with more open is not helped by a longer list.
+const MAX_WINDOWS_SCANNED: usize = 200;
+const GW_OWNER: u32 = 4;
+const GWL_EXSTYLE: i32 = -20;
+const WS_EX_TOOLWINDOW: i32 = 0x0000_0080;
+const DWMWA_CLOAKED: u32 = 14;
+const SW_RESTORE: i32 = 9;
+
+unsafe extern "system" fn collect_window(hwnd: isize, lparam: isize) -> i32 {
+    // SAFETY: `lparam` is the address of the `Vec<isize>` that `open_windows` keeps alive for the whole
+    // `EnumWindows` call, and nothing else touches it meanwhile.
+    let found = &mut *(lparam as *mut Vec<isize>);
+    if IsWindowVisible(hwnd) != 0 && GetWindow(hwnd, GW_OWNER) == 0 {
+        found.push(hwnd);
+    }
+    // Keep going until enough have been seen.
+    i32::from(found.len() < MAX_WINDOWS_SCANNED)
+}
+
+/// Whether the system hides this window although it is "visible" (a suspended app, a window on another
+/// virtual desktop).
+fn is_cloaked(hwnd: isize) -> bool {
+    let mut cloaked = 0u32;
+    // SAFETY: valid window handle and a 4-byte output buffer, as the call requires.
+    let result = unsafe { DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &mut cloaked, 4) };
+    result == 0 && cloaked != 0
+}
+
+/// The windows a person would call open: visible, with a title, not a tool window and not hidden by the
+/// system, in front-to-back order. The one in front is marked.
+pub(crate) fn open_windows() -> Vec<WindowEntry> {
+    let mut handles: Vec<isize> = Vec::new();
+    // SAFETY: the callback only uses `lparam` as the `Vec` passed here, which outlives the call.
+    unsafe {
+        EnumWindows(collect_window, &mut handles as *mut Vec<isize> as isize);
+    }
+    // SAFETY: plain Win32 call without arguments.
+    let front = unsafe { GetForegroundWindow() };
+    let mut entries = Vec::new();
+    for hwnd in handles {
+        // SAFETY: plain Win32 calls with a handle just listed (it may have closed since, which they
+        // survive); the title buffer is as long as the size passed.
+        let (title, process, tool) = unsafe {
+            let mut title = [0u16; 256];
+            let length = GetWindowTextW(hwnd, title.as_mut_ptr(), title.len() as i32);
+            let title = String::from_utf16_lossy(&title[..length.clamp(0, 256) as usize]);
+            let mut process_id = 0u32;
+            GetWindowThreadProcessId(hwnd, &mut process_id);
+            let process = if process_id == 0 {
+                String::new()
+            } else {
+                process_file_name(process_id)
+            };
+            (
+                title,
+                process,
+                GetWindowLongW(hwnd, GWL_EXSTYLE) & WS_EX_TOOLWINDOW != 0,
+            )
+        };
+        if title.is_empty() || tool || is_cloaked(hwnd) {
+            continue;
+        }
+        // The desktop itself is a window with a title.
+        if title == "Program Manager" && process.eq_ignore_ascii_case("explorer.exe") {
+            continue;
+        }
+        entries.push(WindowEntry {
+            handle: hwnd as u64,
+            process,
+            title,
+            foreground: hwnd == front,
+        });
+    }
+    entries
+}
+
+/// Brings the window `handle` to the front and says whether it is there. Windows lets a program take the
+/// front only in some cases, so this tries, looks, and reports what it found rather than what it hoped.
+pub(crate) fn focus_window(handle: u64) -> std::result::Result<(), String> {
+    let hwnd = handle as isize;
+    // SAFETY: plain Win32 calls with a handle that may no longer exist (they then fail harmlessly).
+    unsafe {
+        if IsWindow(hwnd) == 0 {
+            return Err("that window has closed".into());
+        }
+        if IsIconic(hwnd) != 0 {
+            ShowWindow(hwnd, SW_RESTORE);
+        }
+        for attempt in 0..3 {
+            if attempt > 0 {
+                // A tap of Alt is input, and input lets the next request for the front succeed.
+                keybd_event(VK_MENU as u8, 0, 0, 0);
+                keybd_event(VK_MENU as u8, 0, KEYEVENTF_KEYUP, 0);
+            }
+            SetForegroundWindow(hwnd);
+            BringWindowToTop(hwnd);
+            std::thread::sleep(std::time::Duration::from_millis(60));
+            if GetForegroundWindow() == hwnd {
+                return Ok(());
+            }
+        }
+    }
+    Err("Windows did not let the window come to the front".into())
 }
 
 const WHEEL_DELTA: i32 = 120;
