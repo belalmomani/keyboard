@@ -56,6 +56,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.omsingh.beckon.R
 import com.omsingh.beckon.connection.TextSendResult
@@ -184,7 +185,7 @@ private fun WheelSection(quick: QuickController) {
 private fun Wheel(entries: List<Pair<String, () -> Unit>>, centre: String, onCentre: (() -> Unit)?) {
     BoxWithConstraints(Modifier.fillMaxWidth().padding(Spacing.sm), contentAlignment = Alignment.Center) {
         val item = 72.dp
-        val side = minOf(maxWidth, if (maxHeight.isFinite) maxHeight else maxWidth, 340.dp)
+        val side = minOf(maxWidth, if (maxHeight != Dp.Infinity) maxHeight else maxWidth, 340.dp)
         val radius = (side - item) / 2f
         Box(Modifier.size(side), contentAlignment = Alignment.Center) {
             entries.forEachIndexed { i, (label, action) ->
