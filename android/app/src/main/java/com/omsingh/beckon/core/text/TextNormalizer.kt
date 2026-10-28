@@ -24,8 +24,8 @@ object TextNormalizer {
         for (c in text.lowercase(Locale.ROOT)) {
             val mapped: Char? = when (c) {
                 in 'ً'..'ٟ', 'ٰ', 'ـ' -> null
-                '‎', '‏', '​', '‌', '‍', '؜', '﻿' -> null
-                in '‪'..'‮', in '⁦'..'⁩' -> null
+                '\u200E', '\u200F', '\u200B', '\u200C', '\u200D', '\u061C', '\uFEFF' -> null
+                in '\u202A'..'\u202E', in '\u2066'..'\u2069' -> null
                 'أ', 'إ', 'آ', 'ٱ' -> 'ا'
                 'ى' -> 'ي'
                 'ة' -> 'ه'

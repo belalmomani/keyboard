@@ -47,4 +47,4 @@ jobs:
           tool: cargo-deny@0.20.2
 
       - name: Check each platform's dependencies
-        run: scripts/check-dependencies.sh
+        run: bash scripts/check-dependencies.sh

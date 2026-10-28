@@ -57,7 +57,7 @@ jobs:
         with:
           tool: cargo-about@0.9.2
       - name: Check the third-party license notice is current
-        run: scripts/update-licenses.sh --check
+        run: bash scripts/update-licenses.sh --check
 
       - name: Check that CI passed on this commit
         env:
