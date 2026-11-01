@@ -151,6 +151,20 @@ class KeyboardSession(private val send: (InputEvent) -> Unit) {
         consumeArmed()
     }
 
+    /**
+     * Erases [backspaces] characters and then types [text], as one step that reaches the PC whole
+     * and in order. With a modifier latched it is real key presses instead, like [backspace] and [type].
+     */
+    fun edit(backspaces: Int, text: String) {
+        if (backspaces <= 0 && text.isEmpty()) return
+        if (hasModifiers) {
+            backspace(backspaces)
+            type(text)
+        } else {
+            send(InputEvent.TypedEdit(backspaces.coerceAtLeast(0), text))
+        }
+    }
+
     /** Presses and releases one key with the latched modifiers. */
     fun tapKey(usage: Int) {
         tap(usage, modifiers())

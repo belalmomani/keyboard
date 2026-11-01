@@ -26,6 +26,10 @@ data class HostCapabilities(
     val windowList: Boolean = false,
     /** The PC runs a command (a key combination, a media key) and says how it went. */
     val commands: Boolean = false,
+    /** The PC can show its screen to the phone, if its owner allows it (the PC says which when asked). */
+    val screen: Boolean = false,
+    /** The PC takes typing as numbered edits and confirms them, so a lost or reordered packet cannot lose a letter. */
+    val reliableTyping: Boolean = false,
 )
 
 /** What the server told the phone about itself. */
@@ -47,7 +51,7 @@ data class HostInfo(
  *  - phone to PC: `[0x12]`
  *  - PC to phone: `[0x82][os: u8][capabilities: u8][major: u8][minor: u8][patch: u8]`
  *
- * Capability bits: `0x01` now-playing, `0x02` clipboard, `0x04` long texts, `0x08` window in front, `0x10` window list, `0x20` confirmed commands. Trailing bytes a newer
+ * Capability bits: `0x01` now-playing, `0x02` clipboard, `0x04` long texts, `0x08` window in front, `0x10` window list, `0x20` confirmed commands, `0x40` screen view, `0x80` confirmed typing. Trailing bytes a newer
  * server may append are ignored, and an unrecognised OS byte decodes as
  * [HostOs.UNKNOWN], so a newer server never breaks an older app.
  */
@@ -62,6 +66,8 @@ object HostInfoCodec {
     private const val CAP_ACTIVE_WINDOW = 0x08
     private const val CAP_WINDOW_LIST = 0x10
     private const val CAP_COMMANDS = 0x20
+    private const val CAP_SCREEN = 0x40
+    private const val CAP_RELIABLE_TYPING = 0x80
 
     /** Parses a decrypted server message, or null if it is not a valid host-info reply. */
     fun parse(buf: ByteArray, len: Int): HostInfo? {
@@ -83,6 +89,8 @@ object HostInfoCodec {
                 activeWindow = caps and CAP_ACTIVE_WINDOW != 0,
                 windowList = caps and CAP_WINDOW_LIST != 0,
                 commands = caps and CAP_COMMANDS != 0,
+                screen = caps and CAP_SCREEN != 0,
+                reliableTyping = caps and CAP_RELIABLE_TYPING != 0,
             ),
             version = version,
         )

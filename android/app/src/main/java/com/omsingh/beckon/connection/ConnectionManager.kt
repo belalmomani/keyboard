@@ -31,6 +31,9 @@ import com.omsingh.beckon.core.text.TextBlockCodec
 import com.omsingh.beckon.core.text.TextBlockResult
 import com.omsingh.beckon.core.text.TextBlockSender
 import com.omsingh.beckon.core.text.TextBlockStage
+import com.omsingh.beckon.core.screen.ScreenState
+import com.omsingh.beckon.core.screen.ScreenViewClient
+import com.omsingh.beckon.core.screen.ScreenViewState
 import com.omsingh.beckon.core.windows.ActiveWindow
 import com.omsingh.beckon.core.windows.ActiveWindowClient
 import com.omsingh.beckon.core.windows.FocusResult
@@ -230,6 +233,27 @@ class ConnectionManager internal constructor(
         if (!canConfirmCommands) return RunOutcome.NoAnswer
         return commandRunner.run(call)
     }
+
+    // ── The PC's screen on the phone ─────────────────────────────────
+
+    private val screenClient = ScreenViewClient(dispatch = { wifi.dispatch(it) })
+
+    /** What the screen view shows: nothing, waiting, the latest picture, or why there is none. */
+    val screenState: StateFlow<ScreenViewState> = screenClient.state
+
+    /** Whether the PC can show its screen (over Wi-Fi, to a PC that offers it). Its owner may still say no. */
+    val canViewScreen: Boolean
+        get() = connectionState.value is ConnectionState.Connected &&
+            _activeTransport.value == ConnectionState.Transport.WIFI && hostInfo.value.capabilities.screen
+
+    /** Starts asking the PC for pictures of its screen. */
+    fun startScreenView() {
+        // A phone that cannot be shown the screen is told so, at once, rather than made to wait.
+        if (canViewScreen) screenClient.start() else screenClient.onStatus(ScreenState.UNSUPPORTED)
+    }
+
+    /** Stops the pictures, and tells the PC. */
+    fun stopScreenView() = screenClient.stop()
 
     // ── Internal bookkeeping ─────────────────────────────────────────
 
@@ -617,7 +641,12 @@ class ConnectionManager internal constructor(
     private fun observeActiveWindow() {
         // The list of windows is only true while the PC that gave it is there.
         scope.launch {
-            connectionState.collect { state -> if (state !is ConnectionState.Connected) windowRadar.clear() }
+            connectionState.collect { state ->
+                if (state !is ConnectionState.Connected) {
+                    windowRadar.clear()
+                    screenClient.reset()
+                }
+            }
         }
         scope.launch {
             combine(activeWindowWanted, hostInfo, connectionState, _activeTransport) { wanted, info, state, transport ->
@@ -656,6 +685,8 @@ class ConnectionManager internal constructor(
             is ServerMessage.Result -> commandResults.tryEmit(message.result)
             is ServerMessage.Window -> activeWindowClient.onUpdate(message.window)
             is ServerMessage.WindowList -> windowRadar.onList(message.windows)
+            is ServerMessage.ScreenStatus -> screenClient.onStatus(message.state)
+            is ServerMessage.ScreenPiece -> with(message) { screenClient.onPiece(frameId, index, count, width, height, data) }
         }
     }
 

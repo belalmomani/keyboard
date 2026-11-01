@@ -49,8 +49,7 @@ class TypingBridge(private val keyboard: KeyboardSession) {
 
         val edit = TextDiff.diff(sent, visible)
         if (!edit.isEmpty) {
-            keyboard.backspace(edit.backspaces)
-            keyboard.type(edit.insert)
+            keyboard.edit(edit.backspaces, edit.insert)
         }
 
         if (chord && !edit.isEmpty) {
@@ -79,15 +78,14 @@ class TypingBridge(private val keyboard: KeyboardSession) {
         if (keyboard.hasModifiers) return
         val edit = TextDiff.diff(sent, text)
         if (!edit.isEmpty) {
-            keyboard.backspace(edit.backspaces)
-            keyboard.type(edit.insert)
+            keyboard.edit(edit.backspaces, edit.insert)
         }
         sent = text
     }
 
     /** The phone's keyboard sent Backspace while the field was empty: the PC may well have something there. */
     fun backspaceWithNothingToDelete() {
-        keyboard.backspace(1)
+        keyboard.edit(1, "")
     }
 
     /** The field was emptied by the person (not by typing). */

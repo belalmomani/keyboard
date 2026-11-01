@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="remote_mode_screen">الشاشة</string>
+    <string name="screen_waiting">بانتظار شاشة الحاسوب…</string>
+    <string name="screen_picture_description">شاشة حاسوبك</string>
+    <string name="screen_view_only">للعرض فقط. استخدم اللوحة والمفاتيح للتحكم بالحاسوب.</string>
+    <string name="screen_try_again">حاول مرة أخرى</string>
+    <string name="screen_not_allowed_title">الحاسوب لا يشارك شاشته</string>
+    <string name="screen_not_allowed_body">لا يسمح بذلك إلا صاحب الحاسوب. على الحاسوب افتح نافذة Beckon واكتب: screen on. أو أنشئ ملفًا فارغًا باسم allow-screen-view في المجلد AppData\\Roaming\\Beckon داخل مجلد المستخدم. ثم حاول مرة أخرى.</string>
+    <string name="screen_unsupported_title">غير متاح هنا</string>
+    <string name="screen_unsupported_body">عرض الشاشة يعمل عبر Wi‑Fi مع حاسوب Windows عليه هذا الإصدار من Beckon.</string>
+    <string name="screen_failed_title">تعذّر على الحاسوب نسخ شاشته</string>
+    <string name="screen_failed_body">يحدث هذا والحاسوب مقفل أو تظهر نافذة إذن من النظام. افتح القفل وحاول مرة أخرى.</string>
+    <string name="screen_no_answer_title">الحاسوب لا يردّ</string>
+    <string name="screen_no_answer_body">تأكد أن الحاسوب يعمل وعلى شبكة Wi‑Fi نفسها، ثم حاول مرة أخرى.</string>
+</resources>

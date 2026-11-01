@@ -213,6 +213,7 @@
     <string name="keys_copy_pc">نسخ من الحاسوب</string>
     <string name="keys_pc_clipboard">من الحاسوب</string>
     <string name="keys_pc_clipboard_copy">نسخ إلى الهاتف</string>
+    <string name="keys_arabic_labels">أحرف عربية على المفاتيح</string>
     <string name="keys_dismiss">إخفاء</string>
     <string name="keys_bt_limits">لا يستطيع البلوتوث كتابة إلا الحروف الإنجليزية والأرقام وعلامات الترقيم.</string>
     <string name="key_esc">Esc</string>

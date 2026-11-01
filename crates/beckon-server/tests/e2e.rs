@@ -760,6 +760,40 @@ async fn out_of_order_delivery_is_tolerated() {
 }
 
 #[tokio::test]
+async fn typed_edits_are_applied_once_and_in_order_whatever_the_network_does() {
+    let server = TestServer::start(|_| {}).await;
+    let mut client = connected(&server).await;
+    let edit = |seq: u32, text: &str| ClientMessage::TypedEdit {
+        seq,
+        backspaces: 0,
+        text: text.into(),
+    };
+    let next = |reply: Option<ServerMessage>| match reply {
+        Some(ServerMessage::TypedAck { next }) => next,
+        other => panic!("expected a confirmation, got {other:?}"),
+    };
+
+    // The second edit arrives first: it is not applied, and the answer says the first is wanted.
+    client.send(edit(1, "b")).await;
+    assert_eq!(next(client.recv_message().await), 0);
+    // The first arrives: applied. A copy of it is answered but not applied again.
+    client.send(edit(0, "a")).await;
+    assert_eq!(next(client.recv_message().await), 1);
+    client.send(edit(0, "a")).await;
+    assert_eq!(next(client.recv_message().await), 1);
+    // Sent again, the second now goes through.
+    client.send(edit(1, "b")).await;
+    assert_eq!(next(client.recv_message().await), 2);
+
+    server.wait_for_calls(2).await;
+    tokio::time::sleep(QUIET).await;
+    assert_eq!(
+        server.calls(),
+        vec![InputCall::Text("a".into()), InputCall::Text("b".into())]
+    );
+}
+
+#[tokio::test]
 async fn a_tampered_packet_is_dropped_and_does_not_poison_the_session() {
     let server = TestServer::start(|_| {}).await;
     let client = connected(&server).await;
@@ -1346,6 +1380,36 @@ async fn a_command_is_run_once_and_a_repeat_gets_the_same_answer_without_running
         presses, 2,
         "one press and one release, however often it was asked"
     );
+}
+
+#[tokio::test]
+async fn the_screen_is_not_shown_to_a_phone_unless_its_owner_allowed_it() {
+    let server = TestServer::start(|_| {}).await;
+    let mut client = connected(&server).await;
+
+    client
+        .send(ClientMessage::ScreenView(ScreenViewRequest::Start {
+            max_width: 640,
+            fps: 3,
+        }))
+        .await;
+    let Some(ServerMessage::ScreenStatus { state, .. }) = client.recv_message().await else {
+        panic!("expected a screen status");
+    };
+    // Nothing is shown: either this kind of computer cannot, or the owner has not said yes.
+    assert!(
+        matches!(state, ScreenState::Unsupported | ScreenState::Disabled),
+        "{state:?}"
+    );
+
+    // Stopping is always answered, also when nothing was running.
+    client
+        .send(ClientMessage::ScreenView(ScreenViewRequest::Stop))
+        .await;
+    let Some(ServerMessage::ScreenStatus { state, .. }) = client.recv_message().await else {
+        panic!("expected a screen status");
+    };
+    assert_eq!(state, ScreenState::Stopped);
 }
 
 #[tokio::test]

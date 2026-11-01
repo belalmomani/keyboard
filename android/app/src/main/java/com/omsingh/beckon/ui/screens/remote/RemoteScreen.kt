@@ -33,6 +33,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.HelpOutline
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Bookmarks
+import androidx.compose.material.icons.rounded.Computer
 import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.Mouse
@@ -97,6 +98,7 @@ enum class RemoteMode(val icon: ImageVector, val label: Int) {
     QUICK(Icons.Rounded.Bolt, R.string.remote_mode_quick),
     LIBRARY(Icons.Rounded.Bookmarks, R.string.remote_mode_library),
     BOARDS(Icons.Rounded.Dashboard, R.string.remote_mode_boards),
+    SCREEN(Icons.Rounded.Computer, R.string.remote_mode_screen),
 }
 
 /** The remote control wired to its view model, with the brief messages it shows. */
@@ -135,6 +137,7 @@ fun RemoteRoute(
         library = viewModel.library,
         quick = viewModel.quick,
         interfaces = viewModel.interfaces,
+        screen = viewModel.screen,
         snackbar = snackbar,
         onGoToDevices = onGoToDevices,
         modifier = modifier,
@@ -153,6 +156,7 @@ fun RemoteScreen(
     library: LibraryController? = null,
     quick: QuickController? = null,
     interfaces: InterfacesController? = null,
+    screen: ScreenController? = null,
 ) {
     var mode by rememberSaveable { mutableStateOf(RemoteMode.PAD) }
     val keyboardUi = rememberKeyboardUiState()
@@ -195,6 +199,7 @@ fun RemoteScreen(
                     library = library,
                     quick = quick,
                     interfaces = interfaces,
+                    screen = screen,
                     haptics = haptics,
                     modifier = contentModifier,
                 )
@@ -266,6 +271,7 @@ private fun RemoteContent(
     library: LibraryController?,
     quick: QuickController?,
     interfaces: InterfacesController?,
+    screen: ScreenController?,
     haptics: com.omsingh.beckon.ui.theme.Haptics,
     modifier: Modifier = Modifier,
 ) {
@@ -289,6 +295,7 @@ private fun RemoteContent(
                         RemoteMode.QUICK -> QuickTab(quick)
                         RemoteMode.BOARDS -> InterfacesTab(state, actions, keyboard, haptics, quick, library, interfaces)
                         RemoteMode.LIBRARY -> LibraryTab(library, onCopyToPhone = { library?.copyToPhone(it) })
+                        RemoteMode.SCREEN -> ScreenTab(screen, connected = state.connection is ConnectionState.Connected)
                     }
                 }
             }
@@ -385,7 +392,11 @@ private fun ModeSwitcher(mode: RemoteMode, onSelect: (RemoteMode) -> Unit) {
 /** The vertical equivalent for landscape, where height is precious. */
 @Composable
 private fun ModeRail(mode: RemoteMode, onSelect: (RemoteMode) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        modifier = Modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
         for (item in RemoteMode.values()) {
             val selected = mode == item
             Surface(

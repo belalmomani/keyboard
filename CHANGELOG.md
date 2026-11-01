@@ -4,6 +4,10 @@ All notable changes are listed here, newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+
+- **Letters lost or swapped when typing fast.** Typing on the phone's keyboard was sent as loose packets, and Wi-Fi sometimes drops or reorders those, so a letter could be missing on the PC (a pasted text was fine because it was sent whole). Each step of typing is now numbered, the PC applies the steps once each and in order and confirms them, and the phone sends again what is not confirmed. Needs the new PC program; with an older one, typing works as before.
+
 ### Added
 
 - **Long texts with real confirmation.** Whole paragraphs, in any language and direction (Arabic included), are sent over Wi-Fi in pieces the PC puts back together and types once, however many times a piece is repeated. The PC answers with how many characters it typed, and the phone shows that answer. A text can be stopped while it is being typed. Needs the new PC program; older ones say so.
@@ -26,6 +30,13 @@ All notable changes are listed here, newest first. The format follows [Keep a Ch
   - Fractal keyboard: a few big keys at a time (a group, then a letter), Latin or Arabic. The letters you use most climb to the first level. Only how often each letter was used is kept, on the phone, and it can be forgotten.
 - The tabs along the top scroll, since there are six now.
 - Test builds workflow: run it by hand to get a debug APK and the Windows programs.
+- **Arabic.** The whole app is now translated (before, only the new tabs were). The PC keyboard has an ع key that shows Arabic letters on the keys (the Windows Arabic 101 layout); the PC's own keyboard language decides what is typed.
+- **The PC's screen on the phone (Screen tab, view only).** Works over Wi-Fi with a Windows PC.
+  - Off until the owner of the PC allows it: type `screen on` in the server's console, or create an empty file called `allow-screen-view` in Beckon's folder (`AppData\Roaming\Beckon`). `screen off` takes it back at once. A phone cannot allow it for itself. The server logs when a phone starts and stops looking.
+  - Pictures are sent encrypted like everything else, at most 5 a second and 1280 pixels wide, only while the tab is open and the app is in front. A still screen costs almost nothing. Nothing is recorded or stored on either side.
+  - Pictures only travel one way: to control the PC use the Pad and Keys tabs.
+  - macOS and Linux PCs say they cannot show their screen yet.
+- Windows: `build-windows.yml` and `build-apk.yml` build the programs and the APK by hand. The Windows programs no longer need the Visual C++ runtime installed (`crt-static`) in these builds.
 
 ## [2.0.0] - 2026-10-18
 

@@ -76,6 +76,18 @@ pub(crate) fn focus_window(handle: u64) -> std::result::Result<(), String> {
     }
 }
 
+/// One picture of the main screen, or why there is none.
+pub(crate) fn capture_screen() -> std::result::Result<crate::ScreenImage, String> {
+    #[cfg(windows)]
+    {
+        windows::capture_screen()
+    }
+    #[cfg(not(windows))]
+    {
+        Err("this computer cannot show its screen to Beckon yet".into())
+    }
+}
+
 /// What is in the way of input, if anything.
 pub(crate) fn input_blocked() -> Option<Block> {
     #[cfg(target_os = "linux")]

@@ -49,6 +49,153 @@ extern "system" {
     fn CloseHandle(handle: isize) -> i32;
 }
 
+#[link(name = "gdi32")]
+extern "system" {
+    fn CreateCompatibleDC(hdc: isize) -> isize;
+    fn CreateCompatibleBitmap(hdc: isize, width: i32, height: i32) -> isize;
+    fn SelectObject(hdc: isize, object: isize) -> isize;
+    #[allow(clippy::too_many_arguments)]
+    fn BitBlt(
+        dest: isize,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        source: isize,
+        source_x: i32,
+        source_y: i32,
+        operation: u32,
+    ) -> i32;
+    fn GetDIBits(
+        hdc: isize,
+        bitmap: isize,
+        start: u32,
+        lines: u32,
+        bits: *mut u8,
+        info: *mut BitmapInfo,
+        usage: u32,
+    ) -> i32;
+    fn DeleteObject(object: isize) -> i32;
+    fn DeleteDC(hdc: isize) -> i32;
+}
+
+#[link(name = "user32")]
+extern "system" {
+    fn GetSystemMetrics(index: i32) -> i32;
+    fn GetDC(hwnd: isize) -> isize;
+    fn ReleaseDC(hwnd: isize, hdc: isize) -> i32;
+}
+
+/// `BITMAPINFOHEADER` followed by room for one colour table entry, which a 32-bit picture does not use.
+#[repr(C)]
+struct BitmapInfo {
+    size: u32,
+    width: i32,
+    height: i32,
+    planes: u16,
+    bit_count: u16,
+    compression: u32,
+    size_image: u32,
+    x_pels_per_meter: i32,
+    y_pels_per_meter: i32,
+    colors_used: u32,
+    colors_important: u32,
+    colors: [u32; 1],
+}
+
+const SM_CXSCREEN: i32 = 0;
+const SM_CYSCREEN: i32 = 1;
+/// Copy the pixels as they are, including windows that are drawn in layers (menus, tooltips).
+const SRCCOPY_CAPTUREBLT: u32 = 0x00CC_0020 | 0x4000_0000;
+const DIB_RGB_COLORS: u32 = 0;
+
+/// One picture of the main screen, 4 bytes a pixel (blue, green, red, unused), rows from the top.
+///
+/// Fails, and says why, when the system will not give the screen: for instance while it is locked, or a
+/// permission window of the system is showing.
+pub fn capture_screen() -> std::result::Result<crate::ScreenImage, String> {
+    // SAFETY: plain GDI calls. Every handle that is created is released before returning, the bitmap is not
+    // selected into a device context when it is read (as `GetDIBits` requires), and the buffer is exactly
+    // `width * height * 4` bytes, which is what is asked for.
+    unsafe {
+        let width = GetSystemMetrics(SM_CXSCREEN);
+        let height = GetSystemMetrics(SM_CYSCREEN);
+        if width <= 0 || height <= 0 {
+            return Err("the system did not say how big the screen is".into());
+        }
+        let screen = GetDC(0);
+        if screen == 0 {
+            return Err("the system would not give the screen".into());
+        }
+        let memory = CreateCompatibleDC(screen);
+        let bitmap = CreateCompatibleBitmap(screen, width, height);
+        if memory == 0 || bitmap == 0 {
+            if bitmap != 0 {
+                DeleteObject(bitmap);
+            }
+            if memory != 0 {
+                DeleteDC(memory);
+            }
+            ReleaseDC(0, screen);
+            return Err("not enough memory to copy the screen".into());
+        }
+        let previous = SelectObject(memory, bitmap);
+        let copied = BitBlt(
+            memory,
+            0,
+            0,
+            width,
+            height,
+            screen,
+            0,
+            0,
+            SRCCOPY_CAPTUREBLT,
+        );
+        SelectObject(memory, previous);
+
+        let mut bgra = vec![0u8; width as usize * height as usize * 4];
+        let mut info = BitmapInfo {
+            size: 40,
+            width,
+            // Negative: rows from the top.
+            height: -height,
+            planes: 1,
+            bit_count: 32,
+            compression: 0,
+            size_image: 0,
+            x_pels_per_meter: 0,
+            y_pels_per_meter: 0,
+            colors_used: 0,
+            colors_important: 0,
+            colors: [0],
+        };
+        let lines = if copied != 0 {
+            GetDIBits(
+                screen,
+                bitmap,
+                0,
+                height as u32,
+                bgra.as_mut_ptr(),
+                &mut info,
+                DIB_RGB_COLORS,
+            )
+        } else {
+            0
+        };
+        DeleteObject(bitmap);
+        DeleteDC(memory);
+        ReleaseDC(0, screen);
+        if copied == 0 || lines == 0 {
+            return Err("the system would not let Beckon copy the screen".into());
+        }
+        Ok(crate::ScreenImage {
+            width: width as usize,
+            height: height as usize,
+            bgra,
+        })
+    }
+}
+
 /// `PROCESS_QUERY_LIMITED_INFORMATION`: enough to ask a process for its file name, and granted for
 /// most processes without administrator rights.
 const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;

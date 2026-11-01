@@ -5,11 +5,13 @@
 //! rule here is covered by plain unit tests.
 
 use crate::commands::CommandLog;
+use crate::screen::ScreenControl;
 use crate::text_block::BlockTracker;
 use beckon_crypto::NoiseTransport;
 use beckon_protocol::{ClientMessage, MouseButtonKind};
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::Instant;
 
@@ -95,6 +97,10 @@ pub struct Session {
     pub blocks: BlockTracker,
     /// The commands this phone has asked for, so that a repeated request is not run twice.
     pub commands: CommandLog,
+    /// The picture of the screen this phone is looking at, if it is.
+    pub screen: Option<Arc<ScreenControl>>,
+    /// The number of the next typed edit this phone has to send: everything below it has been applied.
+    pub typing_next: u32,
 }
 
 impl Session {
@@ -106,6 +112,8 @@ impl Session {
             held: HeldInputs::default(),
             blocks: BlockTracker::default(),
             commands: CommandLog::default(),
+            screen: None,
+            typing_next: 0,
         }
     }
 }

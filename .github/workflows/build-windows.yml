@@ -20,7 +20,11 @@ jobs:
         with:
           toolchain: stable
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+      # Link the C runtime into the program, so that it starts on a PC without the
+      # Visual C++ Redistributable (the VCRUNTIME140.dll error).
       - name: Build
+        env:
+          RUSTFLAGS: -C target-feature=+crt-static
         run: cargo build --release --locked --bin beckon --bin beckon-server
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:

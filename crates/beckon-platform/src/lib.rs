@@ -46,6 +46,24 @@ pub fn focus_window(handle: u64) -> std::result::Result<(), String> {
     os::focus_window(handle)
 }
 
+/// Whether [`capture_screen`] can ever give a picture on this system.
+pub const SCREEN_CAPTURE_SUPPORTED: bool = cfg!(windows);
+
+/// One picture of a screen, as the system gives it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScreenImage {
+    pub width: usize,
+    pub height: usize,
+    /// 4 bytes a pixel (blue, green, red, unused), rows from the top, `width * height * 4` bytes.
+    pub bgra: Vec<u8>,
+}
+
+/// One picture of the main screen, or a plain-words reason why there is none (see [`SCREEN_CAPTURE_SUPPORTED`]).
+/// It takes a moment, so it is not for the input thread.
+pub fn capture_screen() -> std::result::Result<ScreenImage, String> {
+    os::capture_screen()
+}
+
 /// How typed text reaches applications on Linux.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TextEntry {

@@ -14,7 +14,9 @@ import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -63,6 +65,32 @@ private val SymbolRow = listOf(
 private val CommaDot = listOf(Symbol(",", "<", HidKeyCodes.COMMA), Symbol(".", ">", HidKeyCodes.DOT))
 
 /**
+ * What the keys show when the Arabic labels are on: the standard Windows "Arabic (101)" layout, by the
+ * US key each one sits on. Only the labels change. The PC decides what a key types, so the PC's own
+ * keyboard language has to be Arabic as well (on Windows, Windows key + Space).
+ */
+private val ArabicPlain = mapOf(
+    'q' to "ض", 'w' to "ص", 'e' to "ث", 'r' to "ق", 't' to "ف", 'y' to "غ", 'u' to "ع", 'i' to "ه", 'o' to "خ", 'p' to "ح",
+    'a' to "ش", 's' to "س", 'd' to "ي", 'f' to "ب", 'g' to "ل", 'h' to "ا", 'j' to "ت", 'k' to "ن", 'l' to "م",
+    'z' to "ئ", 'x' to "ء", 'c' to "ؤ", 'v' to "ر", 'b' to "لا", 'n' to "ى", 'm' to "ة",
+    '`' to "ذ", '[' to "ج", ']' to "د", ';' to "ك", '\'' to "ط", ',' to "و", '.' to "ز", '/' to "ظ",
+)
+private val ArabicShifted = mapOf(
+    'q' to "\u064E", 'w' to "\u064B", 'e' to "\u064F", 'r' to "\u064C", 't' to "لإ", 'y' to "إ", 'u' to "\u2018", 'i' to "÷", 'o' to "×", 'p' to "؛",
+    'a' to "\u0650", 's' to "\u064D", 'd' to "]", 'f' to "[", 'g' to "لأ", 'h' to "أ", 'j' to "\u0640", 'k' to "،", 'l' to "/",
+    'z' to "~", 'x' to "\u0652", 'c' to "}", 'v' to "{", 'b' to "لآ", 'n' to "آ", 'm' to "\u2019",
+    '/' to "؟",
+)
+private const val ArabicDigits = "١٢٣٤٥٦٧٨٩٠"
+
+/** The label of a key: its Arabic one when those are on and the key has one, else [latin]. */
+private fun labelFor(key: Char, latin: String, arabic: Boolean, shifted: Boolean): String {
+    if (!arabic) return latin
+    val table = if (shifted) ArabicShifted else ArabicPlain
+    return table[key] ?: ArabicPlain[key]?.takeIf { !shifted } ?: latin
+}
+
+/**
  * A full keyboard for the PC: letters, digits, punctuation, function keys, the editing keys
  * and arrows, with Ctrl, Alt, Shift and the Super (Windows, Command) key.
  *
@@ -89,6 +117,8 @@ fun KeyGrid(
     // The state is then handed down to the keys as arguments that change. A key given only the
     // session would see the same arguments after every change, and would not be redrawn.
     val shifted = remember(version) { keyboard.modifiers().leftShift }
+    // Which labels the keys show. Local to the keyboard on screen; it is not saved.
+    var arabic by remember { mutableStateOf(false) }
     val states = remember(version) { ModifierKey.values().associateWith { keyboard.visualState(it) } }
 
     val keyHeight = if (compact) 34.dp else 46.dp
@@ -106,10 +136,25 @@ fun KeyGrid(
             TypeKey("PgUp", HidKeyCodes.PAGE_UP, keyboard, haptics, height = keyHeight)
             TypeKey("PgDn", HidKeyCodes.PAGE_DOWN, keyboard, haptics, height = keyHeight)
             TypeKey("PrtSc", HidKeyCodes.PRINT_SCREEN, keyboard, haptics, height = keyHeight)
+            KeyCell(
+                label = if (arabic) "EN" else "ع",
+                description = stringResource(R.string.keys_arabic_labels),
+                height = keyHeight,
+                onDown = { arabic = !arabic },
+                onUp = {},
+                haptics = haptics,
+                isToggle = true,
+                toggledOn = arabic,
+                holdable = false,
+            )
         }
         KeyRow {
             for (i in DigitLabels.indices) {
-                val label = if (shifted) DigitShifted[i].toString() else DigitLabels[i].toString()
+                val label = when {
+                    shifted -> DigitShifted[i].toString()
+                    arabic -> ArabicDigits[i].toString()
+                    else -> DigitLabels[i].toString()
+                }
                 TypeKey(label, DigitUsages[i], keyboard, haptics, height = keyHeight, description = DigitLabels[i].toString())
             }
             TypeKey(null, HidKeyCodes.BACKSPACE, keyboard, haptics, height = keyHeight, weight = 1.5f, icon = Icons.AutoMirrored.Rounded.Backspace, description = "Backspace")
@@ -118,14 +163,15 @@ fun KeyGrid(
             KeyRow {
                 if (index == 2) ModKey(ModifierKey.SHIFT, host.shift.symbol, host.shift.spokenName, states.getValue(ModifierKey.SHIFT), keyboard, haptics, keyHeight, weight = 1.5f)
                 for ((i, letter) in row.first.withIndex()) {
-                    val label = if (shifted) letter.uppercaseChar().toString() else letter.toString()
+                    val latin = if (shifted) letter.uppercaseChar().toString() else letter.toString()
+                    val label = labelFor(letter, latin, arabic, shifted)
                     TypeKey(label, row.second[i], keyboard, haptics, height = keyHeight, description = letter.toString())
                 }
                 if (index == 1) TypeKey("Enter", HidKeyCodes.ENTER, keyboard, haptics, height = keyHeight, weight = 1.7f)
-                if (index == 2) for (symbol in CommaDot) SymbolKey(symbol, shifted, keyboard, haptics, keyHeight)
+                if (index == 2) for (symbol in CommaDot) SymbolKey(symbol, shifted, arabic, keyboard, haptics, keyHeight)
             }
         }
-        KeyRow { for (symbol in SymbolRow) SymbolKey(symbol, shifted, keyboard, haptics, keyHeight) }
+        KeyRow { for (symbol in SymbolRow) SymbolKey(symbol, shifted, arabic, keyboard, haptics, keyHeight) }
         KeyRow {
             ModKey(ModifierKey.CTRL, host.ctrl.symbol, host.ctrl.spokenName, states.getValue(ModifierKey.CTRL), keyboard, haptics, keyHeight, weight = 1.45f)
             ModKey(ModifierKey.META, host.meta.symbol, host.meta.spokenName, states.getValue(ModifierKey.META), keyboard, haptics, keyHeight, weight = 1.45f)
@@ -169,8 +215,10 @@ private fun RowScope.TypeKey(
 }
 
 @Composable
-private fun RowScope.SymbolKey(symbol: Symbol, shifted: Boolean, keyboard: KeyboardSession, haptics: Haptics, height: Dp) {
-    TypeKey(if (shifted) symbol.shifted else symbol.plain, symbol.usage, keyboard, haptics, height = height, description = symbol.plain)
+private fun RowScope.SymbolKey(symbol: Symbol, shifted: Boolean, arabic: Boolean, keyboard: KeyboardSession, haptics: Haptics, height: Dp) {
+    val latin = if (shifted) symbol.shifted else symbol.plain
+    val label = labelFor(symbol.plain[0], latin, arabic, shifted)
+    TypeKey(label, symbol.usage, keyboard, haptics, height = height, description = symbol.plain)
 }
 
 /** A modifier key: held while touched, or latched by tapping (see [KeyboardSession]). */

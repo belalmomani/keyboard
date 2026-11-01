@@ -12,6 +12,7 @@ import com.omsingh.beckon.core.host.HostInfoCodec
 import com.omsingh.beckon.core.input.ConnectionState
 import com.omsingh.beckon.core.input.ConnectionTarget
 import com.omsingh.beckon.core.input.FailureReason
+import com.omsingh.beckon.core.input.HidKeyCodes
 import com.omsingh.beckon.core.input.InputDispatcher
 import com.omsingh.beckon.core.input.InputEvent
 import kotlinx.coroutines.CoroutineScope
@@ -73,6 +74,8 @@ import java.util.concurrent.atomic.AtomicInteger
  *  - TextCancel   `[15][u32 id]`
  *  - WindowFocus  `[17][u32 id][u64 handle]`
  *  - RunCommand   `[18][u32 id][u8 kind][u8 mods][u16 usage]`
+ *  - ScreenView   `[19][u8 start][u16 max width][u8 fps]`
+ *  - TypedEdit    `[1A][u32 seq][u16 backspaces][u16 length][utf-8]` (confirmed by the PC, see [ReliableTyping])
  */
 class WifiInputDispatcher(
     private val identity: ClientIdentity,
@@ -122,6 +125,8 @@ class WifiInputDispatcher(
         }
     }
 
+    private val typing = ReliableTyping()
+
     private val lock = Any()
     @Volatile private var link: Link? = null
     private var target: ConnectionTarget.Wifi? = null
@@ -148,6 +153,10 @@ class WifiInputDispatcher(
     // ── Sending ──────────────────────────────────────────────────────
 
     override fun dispatch(event: InputEvent) {
+        if (event is InputEvent.TypedEdit) {
+            typedEdit(event)
+            return
+        }
         val current = link ?: return
         // An exception escaping a task on the TX thread would reach the default
         // handler and kill the app, so a bad event is dropped instead. (Only the
@@ -161,10 +170,58 @@ class WifiInputDispatcher(
         }
     }
 
+    /** Typing the PC confirms, or, for a PC too old to, the same typing sent loosely as before. */
+    private fun typedEdit(event: InputEvent.TypedEdit) {
+        if (_hostInfo.value.capabilities.reliableTyping) {
+            // Kept even while the link is being rebuilt: it is sent once the PC is there again.
+            val steps = typing.add(event.backspaces, event.text, nowMs())
+            link?.let { sendSteps(it, steps) }
+            return
+        }
+        val none = InputEvent.Modifiers()
+        repeat(event.backspaces) {
+            dispatch(InputEvent.KeyPress(HidKeyCodes.BACKSPACE, none))
+            dispatch(InputEvent.KeyRelease(HidKeyCodes.BACKSPACE, none))
+        }
+        if (event.text.isNotEmpty()) dispatch(InputEvent.TextInput(event.text))
+    }
+
+    private fun sendSteps(current: Link, steps: List<ReliableTyping.Step>) {
+        if (steps.isEmpty()) return
+        txExecutor.execute {
+            try {
+                if (current.closed) return@execute
+                for (step in steps) {
+                    val bytes = step.text.toByteArray(Charsets.UTF_8)
+                    if (bytes.size > MAX_TYPED_EDIT_BYTES) continue
+                    plain.clear()
+                    plain.put(MSG_TYPED_EDIT)
+                    plain.putInt(step.seq)
+                    plain.putShort(step.backspaces.toShort())
+                    plain.putShort(bytes.size.toShort())
+                    plain.put(bytes)
+                    flushPlain(current)
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "typing step not sent: ${t.javaClass.simpleName}")
+            }
+        }
+    }
+
+    /** Sends again, now and then, the typing the PC has not confirmed. */
+    private suspend fun typingLoop(current: Link) {
+        while (!current.closed) {
+            delay(TYPING_TICK_MS)
+            sendSteps(current, typing.due(nowMs()))
+        }
+    }
+
     private fun sendOnTxThread(link: Link, event: InputEvent) {
         if (link.closed) return
         plain.clear()
         when (event) {
+            // Never reaches here: typed edits are numbered and sent by sendSteps.
+            is InputEvent.TypedEdit -> return
             is InputEvent.MouseMove -> {
                 plain.put(MSG_MOUSE_MOVE)
                 plain.putShort(event.dx.toInt().coerceIn(-32767, 32767).toShort())
@@ -244,6 +301,12 @@ class WifiInputDispatcher(
                 plain.put(event.kind.toByte())
                 plain.put(event.mods.toByte())
                 plain.putShort(event.usage.toShort())
+            }
+            is InputEvent.ScreenView -> {
+                plain.put(MSG_SCREEN_VIEW)
+                plain.put(if (event.start) 1 else 0)
+                plain.putShort(if (event.start) event.maxWidth.toShort() else 0)
+                plain.put(if (event.start) event.fps.toByte() else 0)
             }
         }
         flushPlain(link)
@@ -452,7 +515,13 @@ class WifiInputDispatcher(
             }
             established.monitor.reset(nowMs())
             link = established
-            linkJobs = listOf(scope.launch { receiveLoop(established) }, scope.launch { heartbeatLoop(established, mine) })
+            // A new conversation numbers its typing from the start; what was not confirmed is kept and sent.
+            typing.restart()
+            linkJobs = listOf(
+                scope.launch { receiveLoop(established) },
+                scope.launch { heartbeatLoop(established, mine) },
+                scope.launch { typingLoop(established) },
+            )
         }
         publish(established)
         Log.i(TAG, "Connected to ${established.target.host}:${established.target.port}")
@@ -501,6 +570,10 @@ class WifiInputDispatcher(
                 link.monitor.onPong(now)
                 _hostInfo.value = message.info
                 publish(link)
+            }
+            message is ServerMessage.TypedAck -> {
+                link.monitor.onPacket(now)
+                sendSteps(link, typing.onAck(message.next, now))
             }
             message != null -> {
                 link.monitor.onPacket(now)
@@ -619,6 +692,7 @@ class WifiInputDispatcher(
         linkJobs.forEach { it.cancel() }; linkJobs = emptyList()
         link?.close()
         link = null
+        typing.clear()
     }
 
     fun shutdown() {
@@ -660,6 +734,9 @@ class WifiInputDispatcher(
         const val MSG_WINDOW_LIST_Q: Byte = 0x16
         const val MSG_WINDOW_FOCUS: Byte = 0x17
         const val MSG_RUN_COMMAND: Byte = 0x18
+        const val MSG_SCREEN_VIEW: Byte = 0x19
+        const val MSG_TYPED_EDIT: Byte = 0x1A
+        private const val TYPING_TICK_MS = 40L
         const val MSG_TEXT_BLOCK_CANCEL: Byte = 0x15
 
         // The protocol's limits for long texts (`beckon-protocol`), shared with TextBlockCodec.

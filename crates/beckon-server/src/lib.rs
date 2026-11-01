@@ -11,6 +11,7 @@ pub mod invite;
 pub mod launch;
 pub mod pairing;
 pub mod qr;
+pub mod screen;
 pub mod server;
 pub mod sessions;
 pub mod text_block;

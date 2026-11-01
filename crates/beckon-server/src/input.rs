@@ -190,6 +190,26 @@ pub fn type_block(backend: &mut dyn InputBackend, text: &str, cancel: &AtomicBoo
     })
 }
 
+/// The key that erases the character before the cursor (HID usage).
+const BACKSPACE_USAGE: u16 = 0x2A;
+
+/// One step of typing: erase `backspaces` characters, then type `text`.
+fn type_edit(
+    backend: &mut dyn InputBackend,
+    backspaces: u16,
+    text: &str,
+) -> Result<(), PlatformError> {
+    for _ in 0..backspaces {
+        backend.key(BACKSPACE_USAGE, 0, true)?;
+        backend.key(BACKSPACE_USAGE, 0, false)?;
+    }
+    if text.is_empty() {
+        Ok(())
+    } else {
+        backend.text(text)
+    }
+}
+
 /// Performs a message on a backend. Returns `None` for messages that are not
 /// input (clipboard and media queries are handled elsewhere).
 pub fn apply(
@@ -203,6 +223,9 @@ pub fn apply(
         ClientMessage::KeyPress { keycode, mods } => backend.key(*keycode, *mods, true),
         ClientMessage::KeyRelease { keycode, mods } => backend.key(*keycode, *mods, false),
         ClientMessage::TextInput(text) => backend.text(text),
+        ClientMessage::TypedEdit {
+            backspaces, text, ..
+        } => type_edit(backend, *backspaces, text),
         ClientMessage::MediaCmd(action) => backend.media(*action),
         ClientMessage::VolumeCmd(direction) => backend.volume(*direction),
         ClientMessage::LockScreen => backend.lock_screen(),
@@ -216,7 +239,8 @@ pub fn apply(
         | ClientMessage::WindowFocus { .. }
         | ClientMessage::RunCommand { .. }
         | ClientMessage::TextBlockChunk { .. }
-        | ClientMessage::TextBlockCancel { .. } => return None,
+        | ClientMessage::TextBlockCancel { .. }
+        | ClientMessage::ScreenView(_) => return None,
     })
 }
 
@@ -463,6 +487,40 @@ mod tests {
         let recorded = wait_for(&calls, 1);
         worker.shutdown();
         assert_eq!(recorded, vec![InputCall::MouseMove(2, 2)]);
+    }
+
+    #[test]
+    fn a_typed_edit_erases_first_and_then_types() {
+        let backend = RecordingBackend::new();
+        let calls = backend.calls();
+        let worker = InputWorker::spawn(Box::new(backend)).unwrap();
+        worker.send(ClientMessage::TypedEdit {
+            seq: 0,
+            backspaces: 2,
+            text: "lo ".into(),
+        });
+        worker.send(ClientMessage::TypedEdit {
+            seq: 1,
+            backspaces: 0,
+            text: String::new(),
+        });
+        let recorded = wait_for(&calls, 5);
+        worker.shutdown();
+        let key = |pressed| InputCall::Key {
+            usage: 0x2A,
+            mods: 0,
+            pressed,
+        };
+        assert_eq!(
+            recorded,
+            vec![
+                key(true),
+                key(false),
+                key(true),
+                key(false),
+                InputCall::Text("lo ".into()),
+            ]
+        );
     }
 
     // ── Long texts ──────────────────────────────────────────────────────

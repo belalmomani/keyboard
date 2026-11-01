@@ -213,6 +213,7 @@
     <string name="keys_copy_pc">Copy from PC</string>
     <string name="keys_pc_clipboard">From the PC</string>
     <string name="keys_pc_clipboard_copy">Copy to phone</string>
+    <string name="keys_arabic_labels">Arabic letters on the keys</string>
     <string name="keys_dismiss">Dismiss</string>
     <string name="keys_bt_limits">Bluetooth can only type English letters, digits and punctuation.</string>
     <string name="key_esc">Esc</string>

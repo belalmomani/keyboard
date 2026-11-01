@@ -230,4 +230,10 @@ class ServerMessageTest {
     fun `a window list claiming too many windows is rejected`() {
         assertNull(parse(byteArrayOf(0x85.toByte(), 50)))
     }
+
+    @Test
+    fun `a typing confirmation says which step the PC wants next`() {
+        assertEquals(ServerMessage.TypedAck(70_000), parse(byteArrayOf(0x88.toByte(), 0x70, 0x11, 0x01, 0)))
+        assertNull(parse(byteArrayOf(0x88.toByte(), 1, 0)))
+    }
 }

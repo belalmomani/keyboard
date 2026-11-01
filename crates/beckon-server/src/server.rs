@@ -6,6 +6,7 @@ use crate::discovery;
 use crate::input::InputWorker;
 use crate::invite::{self, Invite};
 use crate::pairing::{Admission, Pairing, PairingMode};
+use crate::screen::{self, Picture, ScreenControl, Streamer};
 use crate::sessions::{Session, SessionTable};
 use crate::text_block::Accepted;
 use beckon_crypto::{
@@ -147,6 +148,16 @@ impl ServerHandle {
 
     pub async fn close_pairing(&self) {
         self.shared.state.lock().await.pairing.close_window();
+    }
+
+    /// Whether the owner of this PC lets paired phones see its screen.
+    pub fn screen_view_allowed(&self) -> bool {
+        screen::allowed(&self.shared.config.config_dir)
+    }
+
+    /// Lets paired phones see the screen, or stops them. A phone that is looking stops getting pictures at once.
+    pub fn set_screen_view(&self, on: bool) -> io::Result<()> {
+        screen::set_allowed(&self.shared.config.config_dir, on)
     }
 
     pub async fn status(&self) -> Status {
@@ -636,6 +647,7 @@ async fn transport(shared: &Arc<Shared>, packet: &[u8], src: SocketAddr) {
                 }
             }
         }
+        ClientMessage::ScreenView(request) => screen_view(shared, src, request).await,
         ClientMessage::WindowFocus { request_id, handle } => {
             let shared = Arc::clone(shared);
             tokio::spawn(async move {
@@ -650,7 +662,237 @@ async fn transport(shared: &Arc<Shared>, packet: &[u8], src: SocketAddr) {
                 send_reply(&shared, src, &result).await;
             });
         }
+        ClientMessage::TypedEdit {
+            seq,
+            backspaces,
+            text,
+        } => {
+            // Applied once, in order. An edit that is early (an earlier one was lost) or late (a copy of one
+            // already applied) is not applied, and the answer says which edit is wanted.
+            let next = {
+                let mut state = shared.state.lock().await;
+                let Some(session) = state.sessions.get_mut(&src) else {
+                    return;
+                };
+                if seq == session.typing_next {
+                    session.typing_next = seq.wrapping_add(1);
+                    shared.input.send(ClientMessage::TypedEdit {
+                        seq,
+                        backspaces,
+                        text,
+                    });
+                }
+                session.typing_next
+            };
+            send_reply(shared, src, &ServerMessage::TypedAck { next }).await;
+        }
         other => shared.input.send(other),
+    }
+}
+
+/// A phone starts, keeps going or stops looking at the screen.
+async fn screen_view(shared: &Arc<Shared>, src: SocketAddr, request: ScreenViewRequest) {
+    let status = |state: ScreenState, width: u16, height: u16| ServerMessage::ScreenStatus {
+        state,
+        width,
+        height,
+    };
+    match request {
+        ScreenViewRequest::Stop => {
+            let running = {
+                let mut state = shared.state.lock().await;
+                state
+                    .sessions
+                    .get_mut(&src)
+                    .and_then(|session| session.screen.take())
+            };
+            if let Some(control) = running {
+                control.stop();
+            }
+            send_reply(shared, src, &status(ScreenState::Stopped, 0, 0)).await;
+        }
+        ScreenViewRequest::Start { max_width, fps } => {
+            if !beckon_platform::SCREEN_CAPTURE_SUPPORTED {
+                send_reply(shared, src, &status(ScreenState::Unsupported, 0, 0)).await;
+                return;
+            }
+            // Only the owner of this PC can allow it (the console's `screen on`), never a phone.
+            if !screen::allowed(&shared.config.config_dir) {
+                send_reply(shared, src, &status(ScreenState::Disabled, 0, 0)).await;
+                return;
+            }
+            let max_width = max_width.clamp(160, MAX_SCREEN_WIDTH);
+            let fps = fps.clamp(1, MAX_SCREEN_FPS);
+            let now = std::time::Instant::now();
+            let begun = {
+                let mut state = shared.state.lock().await;
+                let Some(session) = state.sessions.get_mut(&src) else {
+                    return;
+                };
+                if let Some(running) = session
+                    .screen
+                    .as_ref()
+                    .filter(|running| !running.stopped() && running.same_as(max_width, fps))
+                {
+                    // The same request again: the phone is still looking.
+                    running.touch(now);
+                    Err(running.size())
+                } else {
+                    if let Some(old) = session.screen.take() {
+                        old.stop();
+                    }
+                    let control = ScreenControl::new(max_width, fps, now);
+                    session.screen = Some(Arc::clone(&control));
+                    Ok(control)
+                }
+            };
+            match begun {
+                Ok(control) => {
+                    tokio::spawn(stream_screen(Arc::clone(shared), src, control));
+                }
+                // The phone may not have heard that pictures are coming: say so again.
+                Err(Some((width, height))) => {
+                    send_reply(shared, src, &status(ScreenState::Started, width, height)).await;
+                }
+                Err(None) => {}
+            }
+        }
+    }
+}
+
+/// What one look at the screen came to.
+enum Grab {
+    Picture(Picture),
+    Same,
+    Failed(String),
+}
+
+/// Sends pictures of the screen to one phone until it stops, goes quiet, is disconnected, or the owner takes the
+/// permission back.
+async fn stream_screen(shared: Arc<Shared>, dst: SocketAddr, control: Arc<ScreenControl>) {
+    info!("{dst} is looking at this PC's screen");
+    let max_width = usize::from(control.max_width);
+    let interval = Duration::from_millis(1000 / u64::from(control.fps.max(1)));
+    let mut streamer = Streamer::default();
+    let mut announced: Option<(u16, u16)> = None;
+    loop {
+        if control.stopped()
+            || control.forgotten(std::time::Instant::now())
+            || !screen::allowed(&shared.config.config_dir)
+        {
+            break;
+        }
+        // The phone must still be connected, and this must still be its view (a new session starts without one).
+        let mine = {
+            let state = shared.state.lock().await;
+            state
+                .sessions
+                .get(&dst)
+                .and_then(|session| session.screen.as_ref())
+                .is_some_and(|current| Arc::ptr_eq(current, &control))
+        };
+        if !mine {
+            break;
+        }
+        let begun = tokio::time::Instant::now();
+        let looked = tokio::task::spawn_blocking(move || {
+            let grab = match beckon_platform::capture_screen() {
+                Ok(image) => match streamer.prepare(
+                    &image.bgra,
+                    image.width,
+                    image.height,
+                    max_width,
+                    std::time::Instant::now(),
+                ) {
+                    Ok(Some(picture)) => Grab::Picture(picture),
+                    Ok(None) => Grab::Same,
+                    Err(error) => Grab::Failed(format!("{error:?}")),
+                },
+                Err(reason) => Grab::Failed(reason),
+            };
+            (streamer, grab)
+        })
+        .await;
+        let Ok((back, grab)) = looked else {
+            break;
+        };
+        streamer = back;
+        match grab {
+            Grab::Same => {}
+            Grab::Failed(reason) => {
+                warn!("could not copy the screen for {dst}: {reason}");
+                let failed = ServerMessage::ScreenStatus {
+                    state: ScreenState::Failed,
+                    width: 0,
+                    height: 0,
+                };
+                send_reply(&shared, dst, &failed).await;
+                break;
+            }
+            Grab::Picture(picture) => {
+                if announced != Some((picture.width, picture.height)) {
+                    control.set_size(picture.width, picture.height);
+                    let started = ServerMessage::ScreenStatus {
+                        state: ScreenState::Started,
+                        width: picture.width,
+                        height: picture.height,
+                    };
+                    send_reply(&shared, dst, &started).await;
+                    announced = Some((picture.width, picture.height));
+                }
+                send_picture(&shared, dst, &control, &picture).await;
+            }
+        }
+        tokio::time::sleep(interval.saturating_sub(begun.elapsed())).await;
+    }
+    {
+        let mut state = shared.state.lock().await;
+        if let Some(session) = state.sessions.get_mut(&dst) {
+            if session
+                .screen
+                .as_ref()
+                .is_some_and(|current| Arc::ptr_eq(current, &control))
+            {
+                session.screen = None;
+            }
+        }
+    }
+    info!("{dst} stopped looking at this PC's screen");
+}
+
+/// Sends one picture as the pieces it is cut into, a few at a time.
+async fn send_picture(
+    shared: &Shared,
+    dst: SocketAddr,
+    control: &ScreenControl,
+    picture: &Picture,
+) {
+    let Some(pieces) = screen::split_picture(&picture.data) else {
+        return;
+    };
+    let Ok(count) = u16::try_from(pieces.len()) else {
+        return;
+    };
+    for (index, piece) in pieces.into_iter().enumerate() {
+        if control.stopped() {
+            return;
+        }
+        let Ok(index) = u16::try_from(index) else {
+            return;
+        };
+        let message = ServerMessage::ScreenFrame {
+            frame_id: picture.id,
+            index,
+            count,
+            width: picture.width,
+            height: picture.height,
+            data: piece.to_vec(),
+        };
+        send_reply(shared, dst, &message).await;
+        // A Wi-Fi link drops what arrives in one burst, so the pieces go out a few at a time.
+        if index % 12 == 11 {
+            tokio::time::sleep(Duration::from_millis(2)).await;
+        }
     }
 }
 
@@ -742,9 +984,16 @@ pub fn host_info() -> HostInfo {
 /// The optional features this server offers. Long texts work everywhere input does; the window in
 /// front can only be asked for on Windows so far, and a phone must not be told otherwise.
 fn advertised_capabilities() -> u8 {
-    let mut caps = capabilities::CLIPBOARD | capabilities::TEXT_BLOCK | capabilities::COMMANDS;
+    let mut caps = capabilities::CLIPBOARD
+        | capabilities::TEXT_BLOCK
+        | capabilities::COMMANDS
+        | capabilities::RELIABLE_TYPING;
     if beckon_platform::ACTIVE_WINDOW_SUPPORTED {
         caps |= capabilities::ACTIVE_WINDOW | capabilities::WINDOW_LIST;
+    }
+    // Offered wherever the screen can be copied; whether the owner allows it is answered when a phone asks.
+    if beckon_platform::SCREEN_CAPTURE_SUPPORTED {
+        caps |= capabilities::SCREEN;
     }
     caps
 }

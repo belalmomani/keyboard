@@ -58,6 +58,12 @@ sealed interface InputEvent {
         val modifiers: Modifiers = Modifiers()
     ) : InputEvent
 
+    /**
+     * One step of typing: erase [backspaces] characters, then type [text]. It is a single event so that
+     * the erasing and the typing can never be separated or reordered on the way to the PC.
+     */
+    data class TypedEdit(val backspaces: Int, val text: String) : InputEvent
+
     // ── Media / system ─────────────────────────────────────────────────
 
     data class MediaCommand(val action: MediaAction) : InputEvent
@@ -101,6 +107,12 @@ sealed interface InputEvent {
      * holds the action's number. The PC answers [requestId] with a result and never runs it twice.
      */
     data class RunCommand(val requestId: Int, val kind: Int, val mods: Int, val usage: Int) : InputEvent
+
+    /**
+     * Start, keep going or stop the picture of the PC's screen (Wi-Fi only). Sent again while looking, a start also
+     * tells the PC that the phone is still there. [maxWidth] is in pixels, [fps] pictures a second; the PC may give less.
+     */
+    data class ScreenView(val start: Boolean, val maxWidth: Int, val fps: Int) : InputEvent
 
     // ── Quick launchers / system actions ───────────────────────────────
 

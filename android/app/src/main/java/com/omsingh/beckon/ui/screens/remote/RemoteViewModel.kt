@@ -188,6 +188,9 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application),
     /** The cockpit and the fractal keyboard. */
     val interfaces = InterfacesController(app = application, manager = manager)
 
+    /** The PC's screen on the phone. */
+    val screen = ScreenController(manager)
+
     init {
         // The PC is asked for its front program only while the mode follows it.
         viewModelScope.launch {
@@ -203,6 +206,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application),
         library.close()
         quick.close()
         interfaces.close()
+        manager.stopScreenView()
     }
 
     private companion object {

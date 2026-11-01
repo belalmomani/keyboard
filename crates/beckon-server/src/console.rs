@@ -16,6 +16,8 @@ pub enum Command {
     Close,
     List,
     Forget,
+    /// Show whether phones may see the screen, or let them (`Some(true)`) or stop them (`Some(false)`).
+    Screen(Option<bool>),
     Status,
     Help,
     Quit,
@@ -42,6 +44,7 @@ Commands:
   close            stop accepting new phones now
   list             show paired phones
   forget           unpair every phone
+  screen [on|off]  let paired phones see this PC's screen, or stop them (off until you say on)
   status           show what the server is doing
   help             show this text
   quit             stop the server";
@@ -69,6 +72,12 @@ pub fn parse(line: &str) -> Result<Command, ParseError> {
         "close" | "c" => Ok(Command::Close),
         "list" | "l" | "ls" => Ok(Command::List),
         "forget" | "f" => Ok(Command::Forget),
+        "screen" => match words.next().map(str::to_ascii_lowercase).as_deref() {
+            None => Ok(Command::Screen(None)),
+            Some("on") => Ok(Command::Screen(Some(true))),
+            Some("off") => Ok(Command::Screen(Some(false))),
+            Some(other) => Err(ParseError::BadArgument(other.to_owned())),
+        },
         "status" | "s" => Ok(Command::Status),
         "help" | "h" | "?" => Ok(Command::Help),
         "quit" | "q" | "exit" => Ok(Command::Quit),
@@ -131,6 +140,13 @@ mod tests {
         assert_eq!(parse("list"), Ok(Command::List));
         assert_eq!(parse("ls"), Ok(Command::List));
         assert_eq!(parse("forget"), Ok(Command::Forget));
+        assert_eq!(parse("screen"), Ok(Command::Screen(None)));
+        assert_eq!(parse("screen on"), Ok(Command::Screen(Some(true))));
+        assert_eq!(parse("SCREEN Off"), Ok(Command::Screen(Some(false))));
+        assert_eq!(
+            parse("screen maybe"),
+            Err(ParseError::BadArgument("maybe".into()))
+        );
         assert_eq!(parse("status"), Ok(Command::Status));
         assert_eq!(parse("help"), Ok(Command::Help));
         assert_eq!(parse("?"), Ok(Command::Help));
@@ -149,7 +165,7 @@ mod tests {
     #[test]
     fn help_mentions_every_command() {
         for word in [
-            "pair", "qr", "close", "list", "forget", "status", "help", "quit",
+            "pair", "qr", "close", "list", "forget", "screen", "status", "help", "quit",
         ] {
             assert!(HELP.contains(word), "{word}");
         }

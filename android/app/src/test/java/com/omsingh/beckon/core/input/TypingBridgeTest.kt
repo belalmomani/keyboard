@@ -9,7 +9,22 @@ import org.junit.Test
 class TypingBridgeTest {
 
     private val sent = mutableListOf<InputEvent>()
-    private val keyboard = KeyboardSession { sent += it }
+    private val raw = mutableListOf<InputEvent>()
+
+    // The bridge sends each change as one step; most of these tests care about what it comes to on the
+    // PC (Backspaces, then text), so the step is written out as that.
+    private val keyboard = KeyboardSession { event ->
+        raw += event
+        if (event is InputEvent.TypedEdit) {
+            repeat(event.backspaces) {
+                sent += InputEvent.KeyPress(HidKeyCodes.BACKSPACE, InputEvent.Modifiers.EMPTY)
+                sent += InputEvent.KeyRelease(HidKeyCodes.BACKSPACE, InputEvent.Modifiers.EMPTY)
+            }
+            if (event.text.isNotEmpty()) sent += InputEvent.TextInput(event.text)
+        } else {
+            sent += event
+        }
+    }
     private val bridge = TypingBridge(keyboard)
 
     private val ctrl = InputEvent.Modifiers(leftCtrl = true)
@@ -21,6 +36,15 @@ class TypingBridgeTest {
     )
 
     // ── Typing as the phone's keyboard commits it ────────────────────
+
+    @Test
+    fun `a correction is one step, so the erasing and the typing cannot be separated`() {
+        bridge.update("helo ", null)
+        raw.clear()
+
+        bridge.update("hello ", null)
+        assertEquals(listOf<InputEvent>(InputEvent.TypedEdit(backspaces = 2, text = "lo ")), raw)
+    }
 
     @Test
     fun `letters typed without suggestions go to the PC at once`() {

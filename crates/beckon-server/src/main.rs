@@ -368,6 +368,19 @@ async fn execute(command: Command, handle: &ServerHandle, quit: &Notify) -> bool
             Ok(count) => println!("Unpaired {count} phone(s)."),
             Err(err) => println!("Could not update the paired list: {err}"),
         },
+        Command::Screen(choice) => {
+            if let Some(on) = choice {
+                if let Err(err) = handle.set_screen_view(on) {
+                    println!("Could not change it: {err}");
+                    return true;
+                }
+            }
+            if handle.screen_view_allowed() {
+                println!("Screen view is ON: paired phones can see this PC's screen. Type 'screen off' to stop it.");
+            } else {
+                println!("Screen view is off. Type 'screen on' to let paired phones see this PC's screen.");
+            }
+        }
         Command::Status => {
             let status = handle.status().await;
             println!("Connected phones: {}", status.sessions);

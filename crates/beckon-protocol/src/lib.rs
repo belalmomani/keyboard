@@ -50,6 +50,12 @@ pub const MSG_TYPE_WINDOW_LIST_Q: u8 = 0x16;
 pub const MSG_TYPE_WINDOW_FOCUS: u8 = 0x17;
 /// Runs one command and says how it went (`[u32 request id][u8 kind][u8 mods][u16 usage]`), see [`RemoteCommand`].
 pub const MSG_TYPE_RUN_COMMAND: u8 = 0x18;
+/// Starts, keeps going or stops the picture of the PC's screen (`[u8 action][u16 max width][u8 frames a second]`).
+/// Added in 2.2: older servers ignore it.
+pub const MSG_TYPE_SCREEN_VIEW: u8 = 0x19;
+
+/// Typing that is not lost: an edit (Backspaces, then text) with a sequence number, see [`ClientMessage::TypedEdit`].
+pub const MSG_TYPE_TYPED_EDIT: u8 = 0x1A;
 
 pub const MSG_TYPE_CLIPBOARD_DATA: u8 = 0x80;
 pub const MSG_TYPE_NOW_PLAYING: u8 = 0x81;
@@ -57,6 +63,24 @@ pub const MSG_TYPE_HOST_INFO: u8 = 0x82;
 pub const MSG_TYPE_COMMAND_RESULT: u8 = 0x83;
 pub const MSG_TYPE_ACTIVE_WINDOW: u8 = 0x84;
 pub const MSG_TYPE_WINDOW_LIST: u8 = 0x85;
+/// How the screen view stands (`[u8 state][u16 width][u16 height]`).
+pub const MSG_TYPE_SCREEN_STATUS: u8 = 0x86;
+/// One piece of one picture of the screen, see [`ServerMessage::ScreenFrame`].
+pub const MSG_TYPE_SCREEN_FRAME: u8 = 0x87;
+
+/// Most bytes of picture one datagram carries (a datagram has to stay well under a Wi-Fi path MTU).
+/// The most text one [`ClientMessage::TypedEdit`] carries. A longer insert is sent as several edits.
+pub const MAX_TYPED_EDIT_BYTES: usize = 800;
+/// Tells the phone how many edits the PC has taken, see [`ServerMessage::TypedAck`].
+pub const MSG_TYPE_TYPED_ACK: u8 = 0x88;
+
+pub const MAX_SCREEN_CHUNK_BYTES: usize = 1000;
+/// Most pieces one picture may be cut into. A picture that needs more is not sent.
+pub const MAX_SCREEN_CHUNKS: u16 = 800;
+/// Widest picture a phone may ask for, in pixels.
+pub const MAX_SCREEN_WIDTH: u16 = 1280;
+/// Most pictures a second a phone may ask for.
+pub const MAX_SCREEN_FPS: u8 = 5;
 
 /// Most windows one list carries. A list is one datagram, and has to stay well under a Wi-Fi path MTU.
 pub const MAX_WINDOW_LIST_ENTRIES: usize = 12;
@@ -238,6 +262,12 @@ pub mod capabilities {
     pub const WINDOW_LIST: u8 = 0x10;
     /// The server runs a command and confirms the result (`RunCommand`).
     pub const COMMANDS: u8 = 0x20;
+    /// The server can show its screen to a phone (`ScreenView`). Whether it is allowed to is the PC owner's choice, and
+    /// the server says so in its answer.
+    pub const SCREEN: u8 = 0x40;
+    /// The server takes typing as numbered edits and confirms them (`TypedEdit`, `TypedAck`), so that a lost or
+    /// reordered packet cannot drop or swap a letter.
+    pub const RELIABLE_TYPING: u8 = 0x80;
 }
 
 /// What a server tells a phone about itself.
@@ -406,6 +436,48 @@ pub fn split_text_block(text: &str) -> Result<Vec<String>, ProtocolError> {
     Ok(pieces)
 }
 
+/// What a phone asks of the screen view.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScreenViewRequest {
+    /// Stop sending pictures.
+    Stop,
+    /// Send pictures of the screen, at most `max_width` pixels wide and `fps` a second (both are cut to what the
+    /// server allows). Sent again while looking, it also says "still looking": a server that hears nothing for a
+    /// while stops by itself.
+    Start { max_width: u16, fps: u8 },
+}
+
+/// How the screen view stands, as the server says it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum ScreenState {
+    /// Pictures are on their way; the size is that of the pictures.
+    Started = 0,
+    /// Pictures stopped.
+    Stopped = 1,
+    /// The owner of the PC has not allowed phones to see the screen.
+    Disabled = 2,
+    /// This kind of computer cannot show its screen to Beckon yet.
+    Unsupported = 3,
+    /// The system would not give the screen.
+    Failed = 4,
+}
+
+impl TryFrom<u8> for ScreenState {
+    type Error = ProtocolError;
+
+    fn try_from(value: u8) -> Result<Self, ProtocolError> {
+        match value {
+            0 => Ok(Self::Started),
+            1 => Ok(Self::Stopped),
+            2 => Ok(Self::Disabled),
+            3 => Ok(Self::Unsupported),
+            4 => Ok(Self::Failed),
+            other => Err(ProtocolError::UnknownMessageType(other)),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ClientMessage {
     MouseMove {
@@ -461,6 +533,16 @@ pub enum ClientMessage {
     RunCommand {
         request_id: u32,
         command: RemoteCommand,
+    },
+    /// Start, keep alive or stop the picture of the screen.
+    ScreenView(ScreenViewRequest),
+    /// One step of typing: erase `backspaces` characters, then type `text`. Steps are numbered from 0 for each
+    /// connection and applied strictly in order, each once: the server answers every one with a
+    /// [`ServerMessage::TypedAck`] and the phone sends again whatever is not confirmed.
+    TypedEdit {
+        seq: u32,
+        backspaces: u16,
+        text: String,
     },
 }
 
@@ -587,6 +669,39 @@ impl ClientMessage {
                 buf.put_u8(kind);
                 buf.put_u8(mods);
                 buf.put_u16_le(usage);
+            }
+            Self::TypedEdit {
+                seq,
+                backspaces,
+                text,
+            } => {
+                let bytes = text.as_bytes();
+                if bytes.len() > MAX_TYPED_EDIT_BYTES {
+                    return Err(ProtocolError::PayloadTooLarge {
+                        size: bytes.len(),
+                        max: MAX_TYPED_EDIT_BYTES,
+                    });
+                }
+                buf.put_u8(MSG_TYPE_TYPED_EDIT);
+                buf.put_u32_le(*seq);
+                buf.put_u16_le(*backspaces);
+                buf.put_u16_le(bytes.len() as u16);
+                buf.put_slice(bytes);
+            }
+            Self::ScreenView(request) => {
+                buf.put_u8(MSG_TYPE_SCREEN_VIEW);
+                match request {
+                    ScreenViewRequest::Stop => {
+                        buf.put_u8(0);
+                        buf.put_u16_le(0);
+                        buf.put_u8(0);
+                    }
+                    ScreenViewRequest::Start { max_width, fps } => {
+                        buf.put_u8(1);
+                        buf.put_u16_le(*max_width);
+                        buf.put_u8(*fps);
+                    }
+                }
             }
         }
         Ok(())
@@ -796,6 +911,54 @@ impl ClientMessage {
                     command: RemoteCommand::from_parts(kind, mods, usage)?,
                 })
             }
+            MSG_TYPE_TYPED_EDIT => {
+                if buf.len() < 8 {
+                    return Err(ProtocolError::BufferTooShort {
+                        expected: 8,
+                        actual: buf.len(),
+                    });
+                }
+                let seq = buf.get_u32_le();
+                let backspaces = buf.get_u16_le();
+                let len = buf.get_u16_le() as usize;
+                if len > MAX_TYPED_EDIT_BYTES {
+                    return Err(ProtocolError::PayloadTooLarge {
+                        size: len,
+                        max: MAX_TYPED_EDIT_BYTES,
+                    });
+                }
+                if buf.len() < len {
+                    return Err(ProtocolError::BufferTooShort {
+                        expected: len,
+                        actual: buf.len(),
+                    });
+                }
+                let text = String::from_utf8(buf[..len].to_vec())?;
+                Ok(Self::TypedEdit {
+                    seq,
+                    backspaces,
+                    text,
+                })
+            }
+            MSG_TYPE_SCREEN_VIEW => {
+                if buf.len() < 4 {
+                    return Err(ProtocolError::BufferTooShort {
+                        expected: 4,
+                        actual: buf.len(),
+                    });
+                }
+                let action = buf.get_u8();
+                let max_width = buf.get_u16_le();
+                let fps = buf.get_u8();
+                match action {
+                    0 => Ok(Self::ScreenView(ScreenViewRequest::Stop)),
+                    1 => Ok(Self::ScreenView(ScreenViewRequest::Start {
+                        max_width,
+                        fps,
+                    })),
+                    other => Err(ProtocolError::UnknownMessageType(other)),
+                }
+            }
             other => Err(ProtocolError::UnknownMessageType(other)),
         }
     }
@@ -818,6 +981,27 @@ pub enum ServerMessage {
     ActiveWindow(Option<ActiveWindowInfo>),
     /// The open windows, the one in front marked, at most [`MAX_WINDOW_LIST_ENTRIES`]. Longer lists are cut.
     WindowList(Vec<WindowEntry>),
+    /// How the screen view stands. For `Started`, `width` and `height` are the size of the pictures.
+    ScreenStatus {
+        state: ScreenState,
+        width: u16,
+        height: u16,
+    },
+    /// Piece `index` (from 0) of `count` of picture `frame_id`, which is `width` by `height` pixels. The pieces
+    /// of one picture, joined in order, are a zlib stream (see the server's `screen` module for what is in it).
+    ScreenFrame {
+        frame_id: u32,
+        index: u16,
+        count: u16,
+        width: u16,
+        height: u16,
+        data: Vec<u8>,
+    },
+    /// The PC has taken every [`ClientMessage::TypedEdit`] numbered below `next` and wants `next` now. Sent for
+    /// every edit that arrives, in order or not, so the phone learns what to send again.
+    TypedAck {
+        next: u32,
+    },
 }
 
 impl ServerMessage {
@@ -899,6 +1083,45 @@ impl ServerMessage {
                 buf.put_u32_le(*request_id);
                 buf.put_u8(*status as u8);
                 buf.put_u32_le(*value);
+                Ok(())
+            }
+            Self::ScreenStatus {
+                state,
+                width,
+                height,
+            } => {
+                buf.put_u8(MSG_TYPE_SCREEN_STATUS);
+                buf.put_u8(*state as u8);
+                buf.put_u16_le(*width);
+                buf.put_u16_le(*height);
+                Ok(())
+            }
+            Self::TypedAck { next } => {
+                buf.put_u8(MSG_TYPE_TYPED_ACK);
+                buf.put_u32_le(*next);
+                Ok(())
+            }
+            Self::ScreenFrame {
+                frame_id,
+                index,
+                count,
+                width,
+                height,
+                data,
+            } => {
+                if data.len() > MAX_SCREEN_CHUNK_BYTES {
+                    return Err(ProtocolError::PayloadTooLarge {
+                        size: data.len(),
+                        max: MAX_SCREEN_CHUNK_BYTES,
+                    });
+                }
+                buf.put_u8(MSG_TYPE_SCREEN_FRAME);
+                buf.put_u32_le(*frame_id);
+                buf.put_u16_le(*index);
+                buf.put_u16_le(*count);
+                buf.put_u16_le(*width);
+                buf.put_u16_le(*height);
+                buf.put_slice(data);
                 Ok(())
             }
             Self::WindowList(windows) => {
@@ -1117,6 +1340,64 @@ impl ServerMessage {
                     });
                 }
                 Ok(Self::WindowList(windows))
+            }
+            MSG_TYPE_TYPED_ACK => {
+                if buf.len() < 4 {
+                    return Err(ProtocolError::BufferTooShort {
+                        expected: 4,
+                        actual: buf.len(),
+                    });
+                }
+                Ok(Self::TypedAck {
+                    next: buf.get_u32_le(),
+                })
+            }
+            MSG_TYPE_SCREEN_STATUS => {
+                if buf.len() < 5 {
+                    return Err(ProtocolError::BufferTooShort {
+                        expected: 5,
+                        actual: buf.len(),
+                    });
+                }
+                let state = ScreenState::try_from(buf.get_u8())?;
+                Ok(Self::ScreenStatus {
+                    state,
+                    width: buf.get_u16_le(),
+                    height: buf.get_u16_le(),
+                })
+            }
+            MSG_TYPE_SCREEN_FRAME => {
+                const FIXED: usize = 4 + 2 + 2 + 2 + 2;
+                if buf.len() < FIXED {
+                    return Err(ProtocolError::BufferTooShort {
+                        expected: FIXED,
+                        actual: buf.len(),
+                    });
+                }
+                let frame_id = buf.get_u32_le();
+                let index = buf.get_u16_le();
+                let count = buf.get_u16_le();
+                let width = buf.get_u16_le();
+                let height = buf.get_u16_le();
+                // A piece that says it is outside its own picture, or carries more than one datagram should,
+                // is not one of ours.
+                if count == 0 || count > MAX_SCREEN_CHUNKS || index >= count {
+                    return Err(ProtocolError::UnknownMessageType(MSG_TYPE_SCREEN_FRAME));
+                }
+                if buf.len() > MAX_SCREEN_CHUNK_BYTES {
+                    return Err(ProtocolError::PayloadTooLarge {
+                        size: buf.len(),
+                        max: MAX_SCREEN_CHUNK_BYTES,
+                    });
+                }
+                Ok(Self::ScreenFrame {
+                    frame_id,
+                    index,
+                    count,
+                    width,
+                    height,
+                    data: buf.to_vec(),
+                })
             }
             other => Err(ProtocolError::UnknownMessageType(other)),
         }
@@ -1674,6 +1955,86 @@ mod tests {
         assert!(ClientMessage::decode(&buf).is_err());
     }
 
+    #[test]
+    fn screen_view_requests_roundtrip() {
+        for request in [
+            ScreenViewRequest::Stop,
+            ScreenViewRequest::Start {
+                max_width: 640,
+                fps: 3,
+            },
+        ] {
+            let message = ClientMessage::ScreenView(request);
+            let buf = encode_client(&message);
+            assert_eq!(buf.len(), 5);
+            assert_eq!(ClientMessage::decode(&buf).unwrap(), message);
+            assert!(ClientMessage::decode(&buf[..buf.len() - 1]).is_err());
+        }
+        // An action that is neither stop nor start is refused.
+        assert!(ClientMessage::decode(&[MSG_TYPE_SCREEN_VIEW, 7, 0, 0, 0]).is_err());
+    }
+
+    #[test]
+    fn screen_status_and_frames_roundtrip() {
+        for state in [
+            ScreenState::Started,
+            ScreenState::Stopped,
+            ScreenState::Disabled,
+            ScreenState::Unsupported,
+            ScreenState::Failed,
+        ] {
+            let status = ServerMessage::ScreenStatus {
+                state,
+                width: 640,
+                height: 360,
+            };
+            let mut buf = BytesMut::new();
+            status.encode(&mut buf).unwrap();
+            assert_eq!(ServerMessage::decode(&buf).unwrap(), status);
+        }
+        assert!(ServerMessage::decode(&[MSG_TYPE_SCREEN_STATUS, 9, 0, 0, 0, 0]).is_err());
+
+        let frame = ServerMessage::ScreenFrame {
+            frame_id: 0xABCD_0001,
+            index: 2,
+            count: 5,
+            width: 640,
+            height: 360,
+            data: (0..MAX_SCREEN_CHUNK_BYTES).map(|n| n as u8).collect(),
+        };
+        let mut buf = BytesMut::new();
+        frame.encode(&mut buf).unwrap();
+        assert!(buf.len() <= 1100, "{} bytes", buf.len());
+        assert_eq!(ServerMessage::decode(&buf).unwrap(), frame);
+    }
+
+    #[test]
+    fn a_screen_piece_outside_its_picture_or_too_big_is_refused() {
+        let piece = |index: u16, count: u16, len: usize| ServerMessage::ScreenFrame {
+            frame_id: 1,
+            index,
+            count,
+            width: 8,
+            height: 8,
+            data: vec![0; len],
+        };
+        let mut buf = BytesMut::new();
+        // Too much for one datagram: the server cannot even write it.
+        assert!(piece(0, 1, MAX_SCREEN_CHUNK_BYTES + 1)
+            .encode(&mut buf)
+            .is_err());
+        // Written by hand, a piece with a bad position is not read.
+        for (index, count) in [(0u16, 0u16), (3, 3), (0, MAX_SCREEN_CHUNKS + 1)] {
+            let mut bytes = BytesMut::new();
+            piece(index, count, 4).encode(&mut bytes).unwrap();
+            assert!(ServerMessage::decode(&bytes).is_err(), "{index}/{count}");
+        }
+        // A piece cut short in its header is not read either.
+        let mut bytes = BytesMut::new();
+        piece(0, 1, 4).encode(&mut bytes).unwrap();
+        assert!(ServerMessage::decode(&bytes[..8]).is_err());
+    }
+
     fn entry(n: u64, process: &str, title: &str) -> WindowEntry {
         WindowEntry {
             handle: n,
@@ -1720,5 +2081,39 @@ mod tests {
             assert!(ServerMessage::decode(&buf[..cut]).is_err(), "cut at {cut}");
         }
         assert!(ServerMessage::decode(&[MSG_TYPE_WINDOW_LIST, 200]).is_err());
+    }
+
+    #[test]
+    fn a_typed_edit_and_its_confirmation_round_trip() {
+        let edit = ClientMessage::TypedEdit {
+            seq: 70_000,
+            backspaces: 3,
+            text: "héllo 🚀".into(),
+        };
+        let bytes = encode_client(&edit);
+        assert_eq!(bytes[0], MSG_TYPE_TYPED_EDIT);
+        assert_eq!(ClientMessage::decode(&bytes).unwrap(), edit);
+
+        let ack = ServerMessage::TypedAck { next: 7 };
+        let mut buf = BytesMut::new();
+        ack.encode(&mut buf).unwrap();
+        assert_eq!(&buf[..], &[MSG_TYPE_TYPED_ACK, 7, 0, 0, 0]);
+        assert_eq!(ServerMessage::decode(&buf).unwrap(), ack);
+    }
+
+    #[test]
+    fn a_typed_edit_that_is_too_long_or_cut_short_is_refused() {
+        let long = ClientMessage::TypedEdit {
+            seq: 0,
+            backspaces: 0,
+            text: "x".repeat(MAX_TYPED_EDIT_BYTES + 1),
+        };
+        assert!(long.encode(&mut BytesMut::new()).is_err());
+        assert!(ClientMessage::decode(&[MSG_TYPE_TYPED_EDIT, 0, 0, 0]).is_err());
+        // Says 5 bytes of text, carries 1.
+        assert!(
+            ClientMessage::decode(&[MSG_TYPE_TYPED_EDIT, 0, 0, 0, 0, 0, 0, 5, 0, b'a']).is_err()
+        );
+        assert!(ServerMessage::decode(&[MSG_TYPE_TYPED_ACK, 1]).is_err());
     }
 }

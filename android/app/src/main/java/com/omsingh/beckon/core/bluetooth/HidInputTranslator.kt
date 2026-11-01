@@ -2,6 +2,7 @@ package com.omsingh.beckon.core.bluetooth
 
 import com.omsingh.beckon.core.host.Chord
 import com.omsingh.beckon.core.host.HostProfile
+import com.omsingh.beckon.core.input.HidKeyCodes
 import com.omsingh.beckon.core.input.HidModifierMask
 import com.omsingh.beckon.core.input.InputEvent
 import java.util.concurrent.RejectedExecutionException
@@ -143,7 +144,8 @@ class HidInputTranslator(
                 keyboard.release(event.keyCode)
                 sendKeyboard()
             }
-            is InputEvent.TextInput -> typeText(event)
+            is InputEvent.TextInput -> typeText(event.text, event.modifiers.toHidByte(), backspaces = 0)
+            is InputEvent.TypedEdit -> typeText(event.text, 0, event.backspaces)
 
             is InputEvent.MediaCommand -> tapConsumer(
                 when (event.action) {
@@ -168,7 +170,7 @@ class HidInputTranslator(
             InputEvent.ClipboardGet, is InputEvent.ClipboardSet -> Unit
             // Long texts need the PC's confirmation, which a Bluetooth keyboard cannot give.
             is InputEvent.TextBlockChunk, is InputEvent.TextBlockCancel, is InputEvent.WindowFocus,
-            is InputEvent.RunCommand -> Unit
+            is InputEvent.RunCommand, is InputEvent.ScreenView -> Unit
         }
     }
 
@@ -232,10 +234,10 @@ class HidInputTranslator(
         }
     }
 
-    private fun typeText(event: InputEvent.TextInput) {
-        val plan = TypingPlan.of(event.text)
+    private fun typeText(text: String, base: Int, backspaces: Int) {
+        val plan = TypingPlan.of(text)
         if (plan.skipped > 0) onUntypeable(plan.skipped)
-        val base = event.modifiers.toHidByte()
+        repeat(backspaces) { typingQueue += TypingStep(HidKeyCodes.BACKSPACE, 0) }
         for (stroke in plan.strokes) {
             typingQueue += TypingStep(stroke.usage, base or if (stroke.shift) HidModifierMask.LEFT_SHIFT else 0)
         }
