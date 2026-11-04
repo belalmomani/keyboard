@@ -200,7 +200,7 @@
     <string name="keys_menu_help">How the keys work</string>
     <string name="keys_release_modifiers">Release the modifier keys</string>
     <string name="keys_help_title">Using the keys</string>
-    <string name="keys_help_type">Type with your phone’s keyboard. What you type is sent to the PC, and autocorrect, swipe typing and voice all work.</string>
+    <string name="keys_help_type">Type with your phone’s keyboard, then press Send: the whole text goes to the PC at once. Autocorrect, swipe typing and voice all work. For keys sent as you type, choose “Send each key at once” in the menu.</string>
     <string name="keys_help_chord">For a shortcut, tap Ctrl, Alt, Shift or the Windows key above the keyboard, then a letter on your keyboard. Ctrl, then C, is Ctrl+C.</string>
     <string name="keys_help_lock">Tap a modifier twice to keep it on for several keys. Tap it again to let go.</string>
     <string name="keys_help_hold">Or hold a modifier with one finger while another taps a key. Held on its own for a moment, it is pressed by itself: Super opens a launcher.</string>

@@ -99,7 +99,7 @@ class BeckonConnectionService : Service() {
     }
 
     companion object {
-        private const val CHANNEL_ID = "beckon_connection"
+        const val CHANNEL_ID = "beckon_connection"
         private const val NOTIFICATION_ID = 0xC0FFEE
         const val ACTION_DISCONNECT = "com.omsingh.beckon.DISCONNECT"
         const val ACTION_PLAY_PAUSE = "com.omsingh.beckon.PLAY_PAUSE"

@@ -83,6 +83,7 @@ fun DevicesRoute(
     onOpenRemote: () -> Unit,
     onScan: () -> Unit,
     modifier: Modifier = Modifier,
+    onLinkPhone: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -104,7 +105,14 @@ fun DevicesRoute(
         }
     }
 
-    DevicesScreen(state = state, actions = viewModel, onOpenRemote = onOpenRemote, onScan = onScan, modifier = modifier)
+    DevicesScreen(
+        state = state,
+        actions = viewModel,
+        onOpenRemote = onOpenRemote,
+        onScan = onScan,
+        onLinkPhone = onLinkPhone,
+        modifier = modifier,
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -116,6 +124,7 @@ fun DevicesScreen(
     modifier: Modifier = Modifier,
     nowMs: Long = System.currentTimeMillis(),
     onScan: () -> Unit = {},
+    onLinkPhone: () -> Unit = {},
 ) {
     val platform = LocalPlatformActions.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -174,6 +183,7 @@ fun DevicesScreen(
                 actions = actions,
                 onOpenRemote = onOpenRemote,
                 onScan = onScan,
+                onLinkPhone = onLinkPhone,
                 onAdd = { addSheet = it },
                 onForget = { forgetting = it },
                 onHelp = { helpOpen = true },
@@ -264,6 +274,7 @@ private fun DeviceList(
     actions: DevicesActions,
     onOpenRemote: () -> Unit,
     onScan: () -> Unit,
+    onLinkPhone: () -> Unit,
     onAdd: (AddTab) -> Unit,
     onForget: (DeviceEntry) -> Unit,
     onHelp: () -> Unit,
@@ -324,6 +335,11 @@ private fun DeviceList(
                 TextButton(onClick = onHelp, modifier = Modifier.padding(horizontal = Spacing.sm)) {
                     Text(stringResource(R.string.devices_not_seeing))
                 }
+            }
+        }
+        item(key = "link-phone") {
+            TextButton(onClick = onLinkPhone, modifier = Modifier.padding(horizontal = Spacing.sm)) {
+                Text(stringResource(R.string.link_open_from_devices))
             }
         }
     }

@@ -6,14 +6,17 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.material3.FilterChip
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -27,15 +30,24 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.HelpOutline
+import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Bookmarks
 import androidx.compose.material.icons.rounded.Computer
 import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.Keyboard
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.Mouse
 import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material.icons.rounded.Wifi
@@ -99,6 +111,15 @@ enum class RemoteMode(val icon: ImageVector, val label: Int) {
     LIBRARY(Icons.Rounded.Bookmarks, R.string.remote_mode_library),
     BOARDS(Icons.Rounded.Dashboard, R.string.remote_mode_boards),
     SCREEN(Icons.Rounded.Computer, R.string.remote_mode_screen),
+    ;
+
+    /** The two used most stay on the bar; the rest wait in the tools sheet. */
+    val onBar: Boolean get() = this == PAD || this == KEYS
+
+    companion object {
+        /** What the tools sheet offers, in order. */
+        val tools: List<RemoteMode> = values().filterNot { it.onBar }
+    }
 }
 
 /** The remote control wired to its view model, with the brief messages it shows. */
@@ -107,6 +128,7 @@ fun RemoteRoute(
     viewModel: RemoteViewModel,
     onGoToDevices: () -> Unit,
     modifier: Modifier = Modifier,
+    onLinkPhone: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -140,6 +162,7 @@ fun RemoteRoute(
         screen = viewModel.screen,
         snackbar = snackbar,
         onGoToDevices = onGoToDevices,
+        onLinkPhone = onLinkPhone,
         modifier = modifier,
     )
 }
@@ -152,6 +175,7 @@ fun RemoteScreen(
     keyboard: KeyboardSession,
     onGoToDevices: () -> Unit,
     modifier: Modifier = Modifier,
+    onLinkPhone: () -> Unit = {},
     snackbar: SnackbarHostState = remember { SnackbarHostState() },
     library: LibraryController? = null,
     quick: QuickController? = null,
@@ -161,6 +185,8 @@ fun RemoteScreen(
     var mode by rememberSaveable { mutableStateOf(RemoteMode.PAD) }
     val keyboardUi = rememberKeyboardUiState()
     var details by remember { mutableStateOf(false) }
+    var toolsOpen by remember { mutableStateOf(false) }
+    var cardOpen by rememberSaveable { mutableStateOf(true) }
     var gestures by remember { mutableStateOf(false) }
     val haptics = rememberHaptics(state.preferences.hapticFeedback)
 
@@ -217,7 +243,7 @@ fun RemoteScreen(
                         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                     ) {
                         ConnectionChip(state.connection, compact = true, onClick = { details = true })
-                        ModeRail(mode, onSelect = { mode = it })
+                        ModeRail(mode, onSelect = { mode = it }, onMore = { toolsOpen = true })
                     }
                     content(
                         Modifier
@@ -240,23 +266,41 @@ fun RemoteScreen(
                         modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        // The chip is as wide as its words, not as wide as the screen.
-                        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                            ConnectionChip(state.connection, compact = false, onClick = { details = true })
-                        }
+                        ConnectionBar(
+                            state.connection,
+                            open = cardOpen,
+                            onToggle = { cardOpen = !cardOpen },
+                            onDetails = { details = true },
+                            modifier = Modifier.weight(1f),
+                        )
                         if (mode == RemoteMode.PAD && state.connected) {
                             IconButton(onClick = { gestures = true }) {
                                 Icon(Icons.AutoMirrored.Rounded.HelpOutline, contentDescription = stringResource(R.string.pad_gestures_title))
                             }
                         }
                     }
-                    ModeSwitcher(mode, onSelect = { mode = it })
-                    content(Modifier.weight(1f).fillMaxWidth().padding(bottom = Spacing.md))
+                    ModeSwitcher(mode, onSelect = { mode = it }, onMore = { toolsOpen = true })
+                    content(Modifier.weight(1f).fillMaxWidth())
+                    ToolsHandle(onOpen = { toolsOpen = true })
                 }
             }
         }
     }
 
+    if (toolsOpen) {
+        ToolsSheet(
+            current = mode,
+            onPick = {
+                mode = it
+                toolsOpen = false
+            },
+            onLinkPhone = {
+                toolsOpen = false
+                onLinkPhone()
+            },
+            onDismiss = { toolsOpen = false },
+        )
+    }
     if (details) ConnectionDetailsSheet(state, onDisconnect = { details = false; actions.disconnect() }, onSwitch = { details = false; onGoToDevices() }, onDismiss = { details = false })
     if (gestures) GestureHelpSheet(onDismiss = { gestures = false })
 }
@@ -370,52 +414,252 @@ private fun NotConnected(connection: ConnectionState, onGoToDevices: () -> Unit)
 
 // ── Chrome ───────────────────────────────────────────────────────────
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * The bar at the top: Pad and Keys, which are used most, and a third place that shows the tool in use
+ * (or "Tools") and opens the sheet with the rest.
+ */
 @Composable
-private fun ModeSwitcher(mode: RemoteMode, onSelect: (RemoteMode) -> Unit) {
-    // Six tabs do not fit side by side on a phone, so they scroll.
-    Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+private fun ModeSwitcher(mode: RemoteMode, onSelect: (RemoteMode) -> Unit, onMore: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        for (item in RemoteMode.values()) {
-            FilterChip(
-                selected = mode == item,
-                onClick = { onSelect(item) },
-                label = { Text(stringResource(item.label), maxLines = 1) },
-                leadingIcon = { Icon(item.icon, contentDescription = null, modifier = Modifier.size(18.dp)) },
+        Row(Modifier.padding(Spacing.xs), horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            for (item in RemoteMode.values().filter { it.onBar }) {
+                BarItem(item.icon, stringResource(item.label), mode == item, { onSelect(item) }, Modifier.weight(1f))
+            }
+            val tool = mode.takeUnless { it.onBar }
+            BarItem(
+                icon = tool?.icon ?: Icons.Rounded.Apps,
+                label = stringResource(tool?.label ?: R.string.remote_tools),
+                selected = tool != null,
+                onClick = onMore,
+                modifier = Modifier.weight(1f),
             )
         }
     }
 }
 
-/** The vertical equivalent for landscape, where height is precious. */
 @Composable
-private fun ModeRail(mode: RemoteMode, onSelect: (RemoteMode) -> Unit) {
+private fun BarItem(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(20.dp),
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent,
+        contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier.semantics { role = Role.Tab; this.selected = selected },
+    ) {
+        Column(
+            Modifier.padding(vertical = Spacing.md),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp))
+            Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+        }
+    }
+}
+
+/** The vertical equivalent for landscape, where height is precious: Pad, Keys, the tool in use, and More. */
+@Composable
+private fun ModeRail(mode: RemoteMode, onSelect: (RemoteMode) -> Unit, onMore: () -> Unit) {
     Column(
         modifier = Modifier.verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        for (item in RemoteMode.values()) {
-            val selected = mode == item
-            Surface(
-                onClick = { onSelect(item) },
-                shape = MaterialTheme.shapes.large,
-                color = if (selected) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent,
-                modifier = Modifier
-                    .width(72.dp)
-                    .semantics { role = Role.Tab; this.selected = selected },
-            ) {
-                Column(
-                    Modifier.padding(vertical = Spacing.sm),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
-                ) {
-                    Icon(item.icon, contentDescription = null)
-                    Text(stringResource(item.label), style = MaterialTheme.typography.labelMedium)
+        for (item in RemoteMode.values().filter { it.onBar }) RailItem(item.icon, stringResource(item.label), mode == item) { onSelect(item) }
+        val tool = mode.takeUnless { it.onBar }
+        RailItem(tool?.icon ?: Icons.Rounded.Apps, stringResource(tool?.label ?: R.string.remote_tools), tool != null, onMore)
+    }
+}
+
+@Composable
+private fun RailItem(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.large,
+        color = if (selected) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent,
+        modifier = Modifier
+            .width(72.dp)
+            .semantics { role = Role.Tab; this.selected = selected },
+    ) {
+        Column(
+            Modifier.padding(vertical = Spacing.sm),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
+        ) {
+            Icon(icon, contentDescription = null)
+            Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+        }
+    }
+}
+
+/** A thin strip at the bottom with a small arrow: tap it, or swipe up, for the other tools. */
+@Composable
+private fun ToolsHandle(onOpen: () -> Unit) {
+    Surface(
+        onClick = onOpen,
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier
+            .fillMaxWidth()
+            .draggable(
+                orientation = Orientation.Vertical,
+                state = rememberDraggableState { },
+                onDragStopped = { velocity -> if (velocity < -SWIPE_UP_VELOCITY) onOpen() },
+            ),
+    ) {
+        Row(
+            Modifier.padding(vertical = Spacing.xs),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Rounded.KeyboardArrowUp, contentDescription = null, modifier = Modifier.size(20.dp))
+            Text(stringResource(R.string.remote_tools), style = MaterialTheme.typography.labelMedium)
+        }
+    }
+}
+
+private const val SWIPE_UP_VELOCITY = 300f
+
+/** Every other tool as a big button. Picking one closes the sheet; the arrow at the top does too. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ToolsSheet(current: RemoteMode, onPick: (RemoteMode) -> Unit, onLinkPhone: () -> Unit, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(
+            modifier = Modifier
+                .navigationBarsPadding()
+                .padding(horizontal = Spacing.xl)
+                .padding(bottom = Spacing.xl),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.remote_tools), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = stringResource(R.string.remote_tools_hide))
                 }
             }
+            val items = RemoteMode.tools.map { Triple(it.icon, it.label, it) }
+            for (row in items.chunked(3)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    for ((icon, label, target) in row) {
+                        ToolTile(icon, stringResource(label), current == target, { onPick(target) }, Modifier.weight(1f))
+                    }
+                    repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                ToolTile(Icons.Rounded.PhoneAndroid, stringResource(R.string.remote_tools_link), false, onLinkPhone, Modifier.weight(1f))
+                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolTile(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(20.dp),
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = modifier,
+    ) {
+        Column(
+            Modifier.padding(vertical = Spacing.lg, horizontal = Spacing.xs).fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(28.dp))
+            Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+        }
+    }
+}
+
+/**
+ * The PC's card, which can be folded to a thin strip (with a small arrow) to give the controls more room.
+ * Tapping the card opens the connection's details.
+ */
+@Composable
+private fun ConnectionBar(
+    connection: ConnectionState,
+    open: Boolean,
+    onToggle: () -> Unit,
+    onDetails: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        if (open) {
+            ConnectionCard(connection, onClick = onDetails, modifier = Modifier.weight(1f))
+        } else {
+            ConnectionChip(connection, compact = false, onClick = onDetails, modifier = Modifier.weight(1f))
+        }
+        IconButton(onClick = onToggle) {
+            Icon(
+                if (open) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                contentDescription = stringResource(if (open) R.string.remote_connection_fold else R.string.remote_connection_unfold),
+            )
+        }
+    }
+}
+
+/** The PC this phone is controlling, always in view at the top: its name, how the link is, and a way into the details. */
+@Composable
+private fun ConnectionCard(connection: ConnectionState, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val extended = BeckonTheme.extended
+    val (color, name, status) = when (connection) {
+        is ConnectionState.Connected -> Triple(
+            if (connection.unstable) extended.warning else extended.success,
+            connection.deviceName,
+            listOfNotNull(
+                stringResource(R.string.devices_connected_short),
+                connection.latencyMs?.let { stringResource(R.string.devices_latency, it) },
+            ).joinToString(" · "),
+        )
+        is ConnectionState.Reconnecting -> Triple(extended.warning, connection.deviceName, stringResource(R.string.remote_reconnecting))
+        is ConnectionState.Connecting -> Triple(extended.warning, connection.deviceName, stringResource(R.string.remote_status_connecting))
+        is ConnectionState.Failed -> Triple(MaterialTheme.colorScheme.error, connection.deviceName.orEmpty(), "")
+        ConnectionState.Disconnected -> Triple(MaterialTheme.colorScheme.outline, stringResource(R.string.remote_not_connected_title), "")
+    }
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = modifier.semantics { liveRegion = LiveRegionMode.Polite },
+    ) {
+        Row(
+            modifier = Modifier
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f), androidx.compose.ui.graphics.Color.Transparent),
+                    ),
+                )
+                .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier
+                    .size(48.dp)
+                    .border(BorderStroke(2.dp, color), CircleShape)
+                    .padding(Spacing.sm),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Rounded.Computer, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+                Text(name, style = MaterialTheme.typography.titleMedium, maxLines = 1)
+                if (status.isNotEmpty()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+                        StatusDot(color)
+                        Text(status, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

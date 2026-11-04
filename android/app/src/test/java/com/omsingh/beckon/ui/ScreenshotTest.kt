@@ -19,6 +19,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
@@ -102,6 +104,13 @@ class ScreenshotTest {
         interact()
         compose.mainClock.advanceTimeBy(1_500)
         compose.onRoot().captureRoboImage("src/test/screenshots/$name.png")
+    }
+
+    private fun openTool(label: String) = {
+        compose.onAllNodesWithText("Tools").onFirst().performClick()
+        compose.mainClock.advanceTimeBy(500)
+        compose.onNodeWithText(label).performClick()
+        Unit
     }
 
     private fun openTab(label: String) = { compose.onNodeWithText(label).performClick(); Unit }
@@ -315,13 +324,13 @@ class ScreenshotTest {
     )
 
     // The media pictures show what the desktop server offers today, which has no Now Playing card.
-    @Test fun remote_media() = shot("remote-media", interact = openTab("Media"), content = remote(Fixtures.remote(nowPlaying = false)))
+    @Test fun remote_media() = shot("remote-media", interact = openTool("Media"), content = remote(Fixtures.remote(nowPlaying = false)))
 
-    @Test fun remote_media_dark() = shot("remote-media-dark", dark = true, interact = openTab("Media"), content = remote(Fixtures.remote(nowPlaying = false)))
+    @Test fun remote_media_dark() = shot("remote-media-dark", dark = true, interact = openTool("Media"), content = remote(Fixtures.remote(nowPlaying = false)))
 
     @Test fun remote_media_bluetooth_mac() = shot(
         "remote-media-bluetooth-mac",
-        interact = openTab("Media"),
+        interact = openTool("Media"),
         content = remote(
             Fixtures.remote(
                 os = HostOs.MACOS,

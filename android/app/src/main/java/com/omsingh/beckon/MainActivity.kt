@@ -24,6 +24,8 @@ import com.omsingh.beckon.connection.ConnectionManager
 import com.omsingh.beckon.core.wifi.PairingInvite
 import com.omsingh.beckon.platform.LocalPlatformActions
 import com.omsingh.beckon.platform.PlatformActions
+import com.omsingh.beckon.phonelink.PhoneLinkViewModel
+import com.omsingh.beckon.phonelink.TvRoute
 import com.omsingh.beckon.ui.BeckonRoot
 import com.omsingh.beckon.ui.screens.devices.DevicesViewModel
 import com.omsingh.beckon.ui.screens.remote.RemoteViewModel
@@ -45,6 +47,12 @@ class MainActivity : ComponentActivity() {
     private val devices: DevicesViewModel by viewModels()
     private val remote: RemoteViewModel by viewModels()
     private val updates: UpdateViewModel by viewModels()
+    private val phoneLink: PhoneLinkViewModel by viewModels()
+
+    /** A television (Android TV, Google TV): the screen is the receiver, with the remote's arrows and OK. */
+    private val isTelevision: Boolean by lazy {
+        (getSystemService(UI_MODE_SERVICE) as? android.app.UiModeManager)?.currentModeType == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION
+    }
 
     private val manager by lazy { ConnectionManager.getInstance(application) }
 
@@ -118,7 +126,9 @@ class MainActivity : ComponentActivity() {
                     // The first screen depends on the saved settings, and it is chosen once, when
                     // the app is first built. So nothing is built until they are read (the splash
                     // screen covers the wait); building it earlier opened the walkthrough every time.
-                    if (loaded) {
+                    if (loaded && isTelevision) {
+                        TvRoute(phoneLink)
+                    } else if (loaded) {
                         BeckonRoot(
                             settingsViewModel = settings,
                             devicesViewModel = devices,

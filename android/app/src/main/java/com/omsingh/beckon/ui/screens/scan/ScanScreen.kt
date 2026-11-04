@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.omsingh.beckon.R
+import com.omsingh.beckon.core.phonelink.LinkInvite
 import com.omsingh.beckon.core.wifi.PairingInvite
 import com.omsingh.beckon.platform.LocalPlatformActions
 import com.omsingh.beckon.ui.theme.Spacing
@@ -90,6 +91,8 @@ fun ScanRoute(
     onInvite: (PairingInvite) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    /** When set, a code from another phone (to link two phones) is accepted too, and handed here. */
+    onLink: ((LinkInvite) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val platform = LocalPlatformActions.current
@@ -140,6 +143,28 @@ fun ScanRoute(
                 onUnavailable = { noCamera = true },
                 onText = { text ->
                     if (finished) return@QrCamera
+                    if (onLink != null) {
+                        when (val link = LinkInvite.parse(text)) {
+                            is LinkInvite.Read.Valid -> {
+                                finished = true
+                                haptics.confirm()
+                                onLink(link.invite)
+                                return@QrCamera
+                            }
+                            LinkInvite.Read.NeedsNewerApp -> {
+                                problem = ScanProblem.NEEDS_NEWER_APP
+                                return@QrCamera
+                            }
+                            LinkInvite.Read.Damaged -> {
+                                problem = ScanProblem.DAMAGED
+                                return@QrCamera
+                            }
+                            LinkInvite.Read.NotALink -> {
+                                problem = ScanProblem.NOT_BECKON
+                                return@QrCamera
+                            }
+                        }
+                    }
                     when (val read = PairingInvite.parse(text)) {
                         is PairingInvite.Read.Valid -> {
                             finished = true

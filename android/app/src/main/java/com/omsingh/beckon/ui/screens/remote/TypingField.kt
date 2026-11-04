@@ -1,12 +1,14 @@
 package com.omsingh.beckon.ui.screens.remote
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -25,6 +27,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -37,9 +40,10 @@ import com.omsingh.beckon.core.input.TypingProfile
 import com.omsingh.beckon.ui.theme.Spacing
 
 /**
- * The line the phone's own keyboard types into. What is typed here is sent to the PC
- * ([com.omsingh.beckon.core.input.TypingBridge] decides what and when), so there is nothing to
- * press "send" on, and the PC is where the text ends up.
+ * The line the phone's own keyboard types into. By default the text stays here until the person
+ * sends it ([onSend]: the Send button or the keyboard's Send key), so the PC gets whole words and
+ * sentences, never fragments. In live mode ([onSend] is null) what is typed goes to the PC at once
+ * ([com.omsingh.beckon.core.input.TypingBridge] decides what and when).
  *
  * With [live] on, the phone's keyboard is asked for no suggestions, so every key goes to the PC
  * the moment it is pressed. Hidden text is masked and keeps suggestions off, for passwords.
@@ -54,12 +58,15 @@ fun TypingField(
     focusRequester: FocusRequester,
     modifier: Modifier = Modifier,
     profile: TypingProfile = TypingMode.GENERAL.profile,
+    /** Set when text is sent only on request: the keyboard's own Send key does it. */
+    onSend: (() -> Unit)? = null,
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
-    val description = stringResource(R.string.keys_field_description)
+    val description = stringResource(if (onSend != null) R.string.keys_field_description_compose else R.string.keys_field_description)
     Surface(
-        shape = MaterialTheme.shapes.extraLarge,
+        shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = 2.dp,
         modifier = modifier.fillMaxWidth(),
     ) {
         Row(
@@ -69,7 +76,7 @@ fun TypingField(
             Box(Modifier.weight(1f).padding(vertical = Spacing.md), contentAlignment = Alignment.CenterStart) {
                 if (value.text.isEmpty()) {
                     Text(
-                        stringResource(R.string.keys_placeholder),
+                        stringResource(if (onSend != null) R.string.keys_placeholder_compose else R.string.keys_placeholder),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -80,7 +87,9 @@ fun TypingField(
                     textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     visualTransformation = if (hidden) PasswordVisualTransformation() else VisualTransformation.None,
+                    keyboardActions = KeyboardActions(onSend = { onSend?.invoke() }),
                     keyboardOptions = KeyboardOptions(
+                        imeAction = if (onSend != null) ImeAction.Send else ImeAction.Default,
                         capitalization = if (profile.sentenceCapitals && !hidden) KeyboardCapitalization.Sentences else KeyboardCapitalization.None,
                         autoCorrectEnabled = profile.autoCorrect && !live && !hidden,
                         keyboardType = if (hidden) KeyboardType.Password else KeyboardType.Text,

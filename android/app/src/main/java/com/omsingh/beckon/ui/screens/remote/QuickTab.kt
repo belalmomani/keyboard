@@ -29,8 +29,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -142,10 +140,14 @@ internal fun boardErrorText(error: BoardError): String = stringResource(
 private fun WheelSection(quick: QuickController) {
     val board by quick.board.board.collectAsState()
     var open by rememberSaveable { mutableStateOf<Int?>(null) }
-    var editing by remember { mutableStateOf(false) }
+    var editing by rememberSaveable { mutableStateOf(false) }
     val openGroup = open?.let { board.wheel.getOrNull(it) as? WheelSlot.Group }
     if (open != null && openGroup == null) open = null
 
+    if (editing) {
+        WheelEditorPanel(quick, onDone = { editing = false })
+        return
+    }
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
             val entries: List<Pair<String, () -> Unit>> = if (openGroup != null) {
@@ -177,7 +179,6 @@ private fun WheelSection(quick: QuickController) {
             Text(stringResource(R.string.quick_customize))
         }
     }
-    if (editing) WheelEditor(quick, onDismiss = { editing = false })
 }
 
 /** The commands in a ring around a centre button. Tapping a command runs it. */
@@ -228,57 +229,63 @@ private fun Wheel(entries: List<Pair<String, () -> Unit>>, centre: String, onCen
     }
 }
 
+/**
+ * The wheel editor, shown in place of the wheel (no dialog on top of a dialog).
+ * Four chips on one level: arrange, add a command, make a group, my own commands.
+ */
 @Composable
-private fun WheelEditor(quick: QuickController, onDismiss: () -> Unit) {
+private fun WheelEditorPanel(quick: QuickController, onDone: () -> Unit) {
     val board by quick.board.board.collectAsState()
-    var picking by remember { mutableStateOf(false) }
-    var grouping by remember { mutableStateOf(false) }
-    var mine by remember { mutableStateOf(false) }
+    var page by rememberSaveable { mutableStateOf(0) }
     var error by remember { mutableStateOf<BoardError?>(null) }
+    val pages = listOf(R.string.quick_customize, R.string.quick_add_command, R.string.quick_add_group, R.string.quick_my_commands)
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.quick_customize)) },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                board.wheel.forEachIndexed { index, slot ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        val name = when (slot) {
-                            is WheelSlot.Item -> quick.board.command(slot.commandId)?.let { commandLabel(it) } ?: slot.commandId
-                            is WheelSlot.Group -> groupLabel(slot.name) + " (" + slot.commandIds.size + ")"
-                        }
-                        Text(name, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        IconButton(onClick = { quick.board.moveInWheel(index, -1) }) {
-                            Icon(Icons.Rounded.ArrowUpward, contentDescription = stringResource(R.string.quick_move_up))
-                        }
-                        IconButton(onClick = { quick.board.moveInWheel(index, 1) }) {
-                            Icon(Icons.Rounded.ArrowDownward, contentDescription = stringResource(R.string.quick_move_down))
-                        }
-                        IconButton(onClick = { quick.board.removeFromWheel(index) }) {
-                            Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.lib_delete))
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            pages.forEachIndexed { i, label ->
+                FilterChip(selected = page == i, onClick = { page = i; error = null }, label = { Text(stringResource(label), maxLines = 1) })
+            }
+        }
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            when (page) {
+                0 -> Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    board.wheel.forEachIndexed { index, slot ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            val name = when (slot) {
+                                is WheelSlot.Item -> quick.board.command(slot.commandId)?.let { commandLabel(it) } ?: slot.commandId
+                                is WheelSlot.Group -> groupLabel(slot.name) + " (" + slot.commandIds.size + ")"
+                            }
+                            Text(name, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            IconButton(onClick = { quick.board.moveInWheel(index, -1) }) {
+                                Icon(Icons.Rounded.ArrowUpward, contentDescription = stringResource(R.string.quick_move_up))
+                            }
+                            IconButton(onClick = { quick.board.moveInWheel(index, 1) }) {
+                                Icon(Icons.Rounded.ArrowDownward, contentDescription = stringResource(R.string.quick_move_down))
+                            }
+                            IconButton(onClick = { quick.board.removeFromWheel(index) }) {
+                                Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.lib_delete))
+                            }
                         }
                     }
-                }
-                error?.let { Text(boardErrorText(it), color = MaterialTheme.colorScheme.error) }
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    OutlinedButton(onClick = { picking = true }) { Text(stringResource(R.string.quick_add_command)) }
-                    OutlinedButton(onClick = { grouping = true }) { Text(stringResource(R.string.quick_add_group)) }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    TextButton(onClick = { mine = true }) { Text(stringResource(R.string.quick_my_commands)) }
                     TextButton(onClick = { quick.board.resetToDefaults(); error = null }) { Text(stringResource(R.string.quick_reset)) }
                 }
+                1 -> LazyColumn(Modifier.fillMaxSize()) {
+                    items(quick.board.allCommands(), key = { it.id }) { command ->
+                        TextButton(
+                            onClick = { error = quick.board.addToWheel(command.id); if (error == null) page = 0 },
+                            Modifier.fillMaxWidth(),
+                        ) { Text(commandLabel(command), Modifier.fillMaxWidth(), textAlign = TextAlign.Start) }
+                    }
+                }
+                2 -> GroupPanel(quick.board) { name, ids ->
+                    quick.board.addGroup(name, ids).also { if (it == null) { error = null; page = 0 } }
+                }
+                else -> MyCommandsPanel(quick.board)
             }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.lib_dismiss)) } },
-    )
-    if (picking) {
-        CommandPicker(quick.board, onDismiss = { picking = false }) { error = quick.board.addToWheel(it.id); picking = false }
+        }
+        if (page <= 1) error?.let { Text(boardErrorText(it), color = MaterialTheme.colorScheme.error) }
+        Button(onClick = onDone, Modifier.fillMaxWidth()) { Text(stringResource(R.string.lib_dismiss)) }
     }
-    if (grouping) GroupDialog(quick.board, onDismiss = { grouping = false }) { name, ids ->
-        quick.board.addGroup(name, ids).also { if (it == null) { grouping = false; error = null } }
-    }
-    if (mine) MyCommandsDialog(quick.board, onDismiss = { mine = false })
 }
 
 /** Chooses one command, from the built-in ones and the person's own. */
@@ -302,53 +309,43 @@ fun CommandPicker(board: CommandBoard, onDismiss: () -> Unit, onPick: (Command) 
 }
 
 @Composable
-private fun GroupDialog(board: CommandBoard, onDismiss: () -> Unit, onSave: (String, List<String>) -> BoardError?) {
+private fun GroupPanel(board: CommandBoard, onSave: (String, List<String>) -> BoardError?) {
     var name by remember { mutableStateOf("") }
     var chosen by remember { mutableStateOf(setOf<String>()) }
     var error by remember { mutableStateOf<BoardError?>(null) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.quick_add_group)) },
-        text = {
-            Column {
-                OutlinedTextField(name, { name = it }, singleLine = true, label = { Text(stringResource(R.string.lib_folder_name)) })
-                error?.let { Text(boardErrorText(it), color = MaterialTheme.colorScheme.error) }
-                LazyColumn(Modifier.weight(1f, fill = false)) {
-                    items(board.allCommands(), key = { it.id }) { c ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(
-                                checked = c.id in chosen,
-                                onCheckedChange = { on -> chosen = if (on) chosen + c.id else chosen - c.id },
-                            )
-                            Text(commandLabel(c))
-                        }
-                    }
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        OutlinedTextField(name, { name = it }, singleLine = true, label = { Text(stringResource(R.string.lib_folder_name)) })
+        error?.let { Text(boardErrorText(it), color = MaterialTheme.colorScheme.error) }
+        LazyColumn(Modifier.weight(1f)) {
+            items(board.allCommands(), key = { it.id }) { c ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = c.id in chosen,
+                        onCheckedChange = { on -> chosen = if (on) chosen + c.id else chosen - c.id },
+                    )
+                    Text(commandLabel(c))
                 }
             }
-        },
-        confirmButton = { TextButton(onClick = { error = onSave(name, board.allCommands().map { it.id }.filter { it in chosen }) }) { Text(stringResource(R.string.lib_save)) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.lib_cancel)) } },
-    )
+        }
+        Button(onClick = { error = onSave(name, board.allCommands().map { it.id }.filter { it in chosen }) }) {
+            Text(stringResource(R.string.lib_save))
+        }
+    }
 }
 
 /** The shortcuts and texts the person made: list, delete, and make a new one. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun MyCommandsDialog(board: CommandBoard, onDismiss: () -> Unit) {
+private fun MyCommandsPanel(board: CommandBoard) {
     val state by board.board.collectAsState()
     var label by remember { mutableStateOf("") }
     var keyIndex by remember { mutableStateOf(0) }
     var mods by remember { mutableStateOf(0) }
     var text by remember { mutableStateOf("") }
     var asText by remember { mutableStateOf(false) }
-    var menu by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<BoardError?>(null) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.quick_my_commands)) },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 for (c in state.custom) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(commandLabel(c), Modifier.weight(1f))
@@ -373,12 +370,9 @@ private fun MyCommandsDialog(board: CommandBoard, onDismiss: () -> Unit) {
                             FilterChip(mods and bit != 0, { mods = mods xor bit }, { Text(name) })
                         }
                     }
-                    Box {
-                        OutlinedButton(onClick = { menu = true }) { Text(ShortcutKeys.all[keyIndex].first) }
-                        DropdownMenu(menu, { menu = false }) {
-                            ShortcutKeys.all.forEachIndexed { i, (name, _) ->
-                                DropdownMenuItem(text = { Text(name) }, onClick = { keyIndex = i; menu = false })
-                            }
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                        ShortcutKeys.all.forEachIndexed { i, (name, _) ->
+                            FilterChip(keyIndex == i, { keyIndex = i }, { Text(name, maxLines = 1) })
                         }
                     }
                 }
@@ -387,10 +381,7 @@ private fun MyCommandsDialog(board: CommandBoard, onDismiss: () -> Unit) {
                     error = if (asText) board.addPhrase(label, text) else board.addShortcut(label, ShortcutKeys.all[keyIndex].second, mods)
                     if (error == null) { label = ""; text = "" }
                 }) { Text(stringResource(R.string.lib_save)) }
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.lib_dismiss)) } },
-    )
+    }
 }
 
 // ── Status and confirmation ──────────────────────────────────────────

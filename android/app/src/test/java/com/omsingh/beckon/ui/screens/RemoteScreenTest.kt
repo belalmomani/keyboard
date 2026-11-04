@@ -3,6 +3,8 @@ package com.omsingh.beckon.ui.screens
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
@@ -59,6 +61,14 @@ class RemoteScreenTest {
     private fun show(state: RemoteUiState) =
         compose.show { RemoteScreen(state, actions, keyboard, onGoToDevices = { wentToDevices++ }) }
 
+    /** A tool that lives in the sheet: open it with the bar's Tools place, then pick the tool. */
+    private fun openTool(label: Int) {
+        compose.onAllNodesWithText(string(R.string.remote_tools)).onFirst().performClick()
+        compose.settle()
+        compose.onNodeWithText(string(label)).performClick()
+        compose.settle()
+    }
+
     private fun openTab(label: Int) {
         compose.onNodeWithText(string(label)).performClick()
         compose.settle()
@@ -84,7 +94,7 @@ class RemoteScreenTest {
     fun `the connection chip names the PC and its latency`() {
         show(Fixtures.remote())
         compose.onNodeWithText("Desk PC").assertIsDisplayed()
-        compose.onNodeWithText(string(R.string.devices_latency, 4)).assertIsDisplayed()
+        compose.onNodeWithText(string(R.string.devices_latency, 4), substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -116,7 +126,7 @@ class RemoteScreenTest {
         openTab(R.string.remote_mode_keys)
         compose.onNodeWithText(string(R.string.keys_section_shortcuts)).assertIsDisplayed()
 
-        openTab(R.string.remote_mode_media)
+        openTool(R.string.remote_mode_media)
         compose.onNodeWithText(string(R.string.media_volume)).assertIsDisplayed()
 
         openTab(R.string.remote_mode_pad)
@@ -305,7 +315,7 @@ class RemoteScreenTest {
     @Test
     fun `media buttons send media commands`() {
         show(Fixtures.remote())
-        openTab(R.string.remote_mode_media)
+        openTool(R.string.remote_mode_media)
         compose.onNodeWithContentDescription(string(R.string.media_play_pause)).performClick()
         compose.onNodeWithContentDescription(string(R.string.media_next)).performClick()
         compose.onNodeWithContentDescription(string(R.string.media_previous)).performClick()
@@ -322,7 +332,7 @@ class RemoteScreenTest {
     @Test
     fun `volume buttons send volume commands`() {
         show(Fixtures.remote())
-        openTab(R.string.remote_mode_media)
+        openTool(R.string.remote_mode_media)
         compose.onNodeWithContentDescription(string(R.string.media_volume_up)).performClick()
         compose.onNodeWithContentDescription(string(R.string.media_mute)).performClick()
         assertTrue(sent.containsAll(listOf(InputEvent.VolumeCommand(InputEvent.VolumeDirection.UP), InputEvent.VolumeCommand(InputEvent.VolumeDirection.MUTE))))
@@ -331,7 +341,7 @@ class RemoteScreenTest {
     @Test
     fun `the slide buttons press the arrow keys`() {
         show(Fixtures.remote())
-        openTab(R.string.remote_mode_media)
+        openTool(R.string.remote_mode_media)
         compose.onNodeWithText(string(R.string.media_slide_next)).activate()
         assertEquals(tap(HidKeyCodes.RIGHT), sent)
     }
@@ -339,21 +349,21 @@ class RemoteScreenTest {
     @Test
     fun `what is playing is shown when the PC can say`() {
         show(Fixtures.remote(nowPlaying = true))
-        openTab(R.string.remote_mode_media)
+        openTool(R.string.remote_mode_media)
         compose.onNodeWithText("Midnight City").assertIsDisplayed()
     }
 
     @Test
     fun `no empty now playing card when the PC cannot say`() {
         show(Fixtures.remote(nowPlaying = false))
-        openTab(R.string.remote_mode_media)
+        openTool(R.string.remote_mode_media)
         compose.onNodeWithText(string(R.string.media_nothing_playing)).assertDoesNotExist()
     }
 
     @Test
     fun `system actions follow the PC's operating system`() {
         show(Fixtures.remote(os = HostOs.MACOS))
-        openTab(R.string.remote_mode_media)
+        openTool(R.string.remote_mode_media)
         compose.onNodeWithText(string(R.string.action_task_view_macos)).assertExists()
         compose.onNodeWithText(string(R.string.action_task_manager_macos)).assertExists()
         compose.onNodeWithText(string(R.string.action_task_view_windows)).assertDoesNotExist()
@@ -368,7 +378,7 @@ class RemoteScreenTest {
                 nowPlaying = false,
             ),
         )
-        openTab(R.string.remote_mode_media)
+        openTool(R.string.remote_mode_media)
         compose.onNodeWithText(string(R.string.action_lock)).assertExists()
         compose.onNodeWithText(string(R.string.action_browser)).assertDoesNotExist()
         compose.onNodeWithText(string(R.string.action_file_manager_macos)).assertDoesNotExist()
@@ -377,7 +387,7 @@ class RemoteScreenTest {
     @Test
     fun `locking the screen is always possible`() {
         show(Fixtures.remote())
-        openTab(R.string.remote_mode_media)
+        openTool(R.string.remote_mode_media)
         compose.onNodeWithText(string(R.string.action_lock)).activate()
         assertTrue(sent.contains(InputEvent.LockScreen))
     }

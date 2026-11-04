@@ -37,6 +37,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.omsingh.beckon.phonelink.PhoneLinkRoute
+import com.omsingh.beckon.phonelink.PhoneLinkViewModel
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
@@ -50,7 +53,9 @@ import com.omsingh.beckon.core.input.ConnectionState
 import com.omsingh.beckon.ui.navigation.Devices
 import com.omsingh.beckon.ui.navigation.Onboarding
 import com.omsingh.beckon.ui.navigation.Remote
+import com.omsingh.beckon.ui.navigation.PhoneLink
 import com.omsingh.beckon.ui.navigation.Scan
+import com.omsingh.beckon.ui.navigation.ScanLink
 import com.omsingh.beckon.ui.navigation.Settings
 import com.omsingh.beckon.ui.navigation.SettingsDetail
 import com.omsingh.beckon.ui.screens.devices.DevicesRoute
@@ -118,6 +123,7 @@ fun BeckonRoot(
     // A pairing that starts away from the device list (a link opened from outside the app) is shown
     // there, where the sheet that says how it goes lives.
     val devices by devicesViewModel.state.collectAsStateWithLifecycle()
+    val phoneLinkViewModel: PhoneLinkViewModel = viewModel()
     LaunchedEffect(devices.pairing != null) {
         if (devices.pairing != null && navController.currentDestination.tab() != Tab.DEVICES) {
             navController.navigateToTab(Tab.DEVICES)
@@ -193,6 +199,24 @@ fun BeckonRoot(
                             devicesViewModel,
                             onOpenRemote = { navController.navigateToTab(Tab.REMOTE) },
                             onScan = { navController.navigate(Scan) },
+                            onLinkPhone = { navController.navigate(PhoneLink) },
+                        )
+                    }
+                    composable<PhoneLink> {
+                        PhoneLinkRoute(
+                            phoneLinkViewModel,
+                            onScan = { navController.navigate(ScanLink) },
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
+                    composable<ScanLink> {
+                        ScanRoute(
+                            onInvite = {},
+                            onLink = { invite ->
+                                phoneLinkViewModel.connect(invite)
+                                navController.popBackStack()
+                            },
+                            onClose = { navController.popBackStack() },
                         )
                     }
                     composable<Scan> {
@@ -206,7 +230,11 @@ fun BeckonRoot(
                         )
                     }
                     composable<Remote> {
-                        RemoteRoute(remoteViewModel, onGoToDevices = { navController.navigateToTab(Tab.DEVICES) })
+                        RemoteRoute(
+                            remoteViewModel,
+                            onGoToDevices = { navController.navigateToTab(Tab.DEVICES) },
+                            onLinkPhone = { navController.navigate(PhoneLink) },
+                        )
                     }
                     composable<Settings> {
                         SettingsHomeScreen(

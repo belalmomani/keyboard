@@ -1,6 +1,7 @@
 package com.omsingh.beckon.ui.screens.remote
 
 import android.content.res.Configuration
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,8 +18,11 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentCopy
@@ -43,6 +47,7 @@ import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -50,6 +55,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -99,6 +105,9 @@ class KeyboardUiState(chosenPcLayout: Boolean? = null, live: Boolean = false, hi
     /** Mask what is typed, for a password. */
     var hidden by mutableStateOf(hidden)
 
+    /** What has been written and not yet sent, kept here so that a visit to another tab does not lose it. */
+    var draft by mutableStateOf(TextFieldValue(""))
+
     companion object {
         val Saver = listSaver<KeyboardUiState, Any?>(
             save = { listOf(it.chosenPcLayout, it.live, it.hidden) },
@@ -142,7 +151,7 @@ fun KeyboardTab(
     val pcLayout = ui.chosenPcLayout ?: landscape
     var openPhoneKeyboard by remember { mutableStateOf(false) }
 
-    var field by remember { mutableStateOf(TextFieldValue("")) }
+    var field by ui::draft
     var live by ui::live
     var hidden by ui::hidden
     var help by remember { mutableStateOf(false) }
@@ -153,16 +162,32 @@ fun KeyboardTab(
     val focusManager = LocalFocusManager.current
 
     // Text typed so far must reach the PC before a key from the bar, or the key arrives ahead of it.
-    val beforeKey: () -> Unit = { bridge.flush(field.text) }
+    // (Only in live mode: otherwise the text waits in the field until it is sent, and keys are separate.)
+    val beforeKey: () -> Unit = { if (live) bridge.flush(field.text) }
 
     val onFieldChange: (TextFieldValue) -> Unit = { new ->
-        val composition = new.composition?.let { TypingBridge.Composition(it.start, it.end) }
-        val replacement = bridge.update(new.text, composition)
-        field = if (replacement == null) new else TextFieldValue(replacement, TextRange(replacement.length))
+        if (!live) {
+            field = new
+        } else {
+            val composition = new.composition?.let { TypingBridge.Composition(it.start, it.end) }
+            val replacement = bridge.update(new.text, composition)
+            field = if (replacement == null) new else TextFieldValue(replacement, TextRange(replacement.length))
+        }
+    }
+
+    // Sends what has been written, whole, and starts a fresh line.
+    val sendWritten: () -> Unit = {
+        val text = field.text
+        if (text.isNotEmpty()) {
+            keyboard.edit(0, text)
+            haptics.key()
+            field = TextFieldValue("")
+            bridge.reset()
+        }
     }
 
     val showPcKeyboard = {
-        bridge.flush(field.text)
+        if (live) bridge.flush(field.text)
         keyboardController?.hide()
         focusManager.clearFocus()
         ui.chosenPcLayout = true
@@ -233,12 +258,16 @@ fun KeyboardTab(
                     // Two columns that scroll up and down, however much room there is: with the phone's keyboard
                     // open there is little, and with it closed a long list still fits by scrolling.
                     SectionHeader(stringResource(R.string.keys_section_shortcuts), horizontalPadding = 0.dp)
+                    // Cards, three to a row, each with its icon, its name and the keys it presses on this PC.
                     FlowRow(
-                        maxItemsInEachRow = 2,
+                        maxItemsInEachRow = 3,
                         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                        // Each chip already has a 48dp touch target around its 32dp body.
-                        verticalArrangement = Arrangement.spacedBy(0.dp),
-                    ) { for (item in shortcuts) ShortcutChip(item, haptics, Modifier.weight(1f)) }
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        for (item in shortcuts) ShortcutTile(item, haptics, Modifier.weight(1f))
+                        // A last row that is not full keeps the cards the same size.
+                        repeat((3 - shortcuts.size % 3) % 3) { Spacer(Modifier.weight(1f)) }
+                    }
 
                     if (!state.overWifi) {
                         Text(
@@ -280,8 +309,9 @@ fun KeyboardTab(
                     live = live,
                     hidden = hidden,
                     profile = state.typingMode.profile,
-                    onBackspaceWithNothingToDelete = bridge::backspaceWithNothingToDelete,
+                    onBackspaceWithNothingToDelete = { if (live) bridge.backspaceWithNothingToDelete() else keyboard.edit(1, "") },
                     focusRequester = focus,
+                    onSend = if (live) null else sendWritten,
                     trailing = {
                         IconButton(onClick = { hidden = !hidden }, modifier = Modifier.size(44.dp)) {
                             Icon(
@@ -300,11 +330,19 @@ fun KeyboardTab(
                                 Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.keys_clear))
                             }
                         }
+                        if (!live && field.text.isNotEmpty()) {
+                            FilledIconButton(onClick = sendWritten, modifier = Modifier.size(44.dp)) {
+                                Icon(Icons.AutoMirrored.Rounded.Send, contentDescription = stringResource(R.string.keys_send))
+                            }
+                        }
                         FieldMenu(
                             live = live,
                             onPcKeyboard = showPcKeyboard,
                             onToggleLive = {
-                                bridge.flush(field.text)
+                                // What was already typed is dealt with first, so nothing is sent twice or lost.
+                                if (live) bridge.flush(field.text) else sendWritten()
+                                field = TextFieldValue("")
+                                bridge.reset()
                                 live = !live
                             },
                             onHelp = { help = true },
@@ -408,6 +446,43 @@ private fun ShortcutChip(item: ShortcutItem, haptics: Haptics, modifier: Modifie
         },
         leadingIcon = { Icon(item.icon, contentDescription = null, modifier = Modifier.size(18.dp)) },
     )
+}
+
+/** A shortcut as a card: the icon in a tinted circle, its name, and the keys it presses. */
+@Composable
+private fun ShortcutTile(item: ShortcutItem, haptics: Haptics, modifier: Modifier = Modifier) {
+    Surface(
+        onClick = {
+            haptics.key()
+            item.onClick()
+        },
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = modifier,
+    ) {
+        Column(
+            Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.md),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+        ) {
+            Box(
+                Modifier
+                    .size(40.dp)
+                    .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(item.icon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(22.dp))
+            }
+            Text(item.label, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                item.hint ?: " ",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
 }
 
 @Composable

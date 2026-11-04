@@ -4,12 +4,23 @@ All notable changes are listed here, newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+
+- **Fewer menus, more room.** The bar keeps Pad and Keys, and its third place opens a sheet that slides up from the bottom with every other tool (Media, Quick control, Boards, Library, Screen, Link a phone) as big buttons. A small arrow strip at the bottom (tap or swipe up) opens it too; picking a tool, or the small arrow in the sheet, closes it. The PC card at the top folds to a thin strip with a small arrow.
+- **Typing is sent after you write it.** In the Keys tab the text stays in the field until you press Send (the button or the keyboard's Send key), so the PC gets whole words and sentences, not fragments. Copy, paste and the shortcuts still act at once. Your unsent text is kept if you visit another tab. "Send every key at once" is still in the field's menu for those who want it.
+- **A cleaner Remote screen.** The PC's name and link quality sit in one card at the top, the tabs are one rounded bar, and the shortcuts are cards with an icon, a name and the keys they press.
+- **No menu inside a menu in Quick control.** "Customize" now opens right in the tab, with one row of chips (arrange, add a command, make a group, my commands) instead of dialogs on top of dialogs, and the key picker for your own shortcuts is a row of chips instead of a drop-down. Dangerous commands still ask first.
+
 ### Fixed
 
 - **Letters lost or swapped when typing fast.** Typing on the phone's keyboard was sent as loose packets, and Wi-Fi sometimes drops or reorders those, so a letter could be missing on the PC (a pasted text was fine because it was sent whole). Each step of typing is now numbered, the PC applies the steps once each and in order and confirms them, and the phone sends again what is not confirmed. Needs the new PC program; with an older one, typing works as before.
 
 ### Added
 
+- **Beckon on a television.** On Android TV / Google TV the app opens a receiver: a big code on the screen, a phone scans it (Link a phone, then Send from here), and the phone's screen appears full screen, view only. The TV asks first, with Refuse selected so a stray press of OK allows nothing. Photos and files the phone sends are kept on the TV. Everything works with the remote's arrows, OK and Back.
+- **Show the PC's screen on the TV (or another phone).** After linking, "Show my PC's screen" passes on the pictures of the PC's screen that the phone already receives, view only, and only if the PC allowed it. Nothing is stored.
+
+- **Link a phone.** Devices > Link another phone. One phone shows a code and receives; the other phone scans it, and, once the first phone's owner allows it, shows its screen (view only, only after Android's own permission box, with a notification and a Stop button) and sends photos and files, which are kept inside Beckon and can be opened from there. Both phones need Beckon and the same Wi-Fi; nothing goes through the internet. The code works once, for one phone and a few minutes, and only a phone that scanned it can talk: the two phones use it to key their encryption (AES-GCM), and it is cancelled after three wrong tries. Wi-Fi only; no PC is involved.
 - **Long texts with real confirmation.** Whole paragraphs, in any language and direction (Arabic included), are sent over Wi-Fi in pieces the PC puts back together and types once, however many times a piece is repeated. The PC answers with how many characters it typed, and the phone shows that answer. A text can be stopped while it is being typed. Needs the new PC program; older ones say so.
 - **Saved phrases.** A Library tab with folders, favourites, search that understands Arabic spelling variants, and sending to the PC. Saved on the phone only.
 - **Clipboard history.** Off until turned on. Kept on the phone only, searchable, with pinning. Text that looks like a password, key or card number is never kept, and turning it off deletes the history.

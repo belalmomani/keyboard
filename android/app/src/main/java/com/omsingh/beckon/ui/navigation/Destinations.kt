@@ -10,6 +10,12 @@ import kotlinx.serialization.Serializable
 /** The camera, scanning the QR code on a PC's screen. Not a tab: it covers the whole screen. */
 @Serializable data object Scan
 
+/** Linking this phone with another one: a code to show, or to scan. */
+@Serializable data object PhoneLink
+
+/** The camera, scanning the code on another phone's screen. */
+@Serializable data object ScanLink
+
 @Serializable data object Remote
 
 @Serializable data object Settings
