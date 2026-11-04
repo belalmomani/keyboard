@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The app's surface colour (the default sky accent), so the splash matches the first frame. -->
+    <color name="splash_background">#FFF4FBFF</color>
+    <!-- The launcher icon background. -->
+    <color name="ic_launcher_background">#FF0F172A</color>
+</resources>

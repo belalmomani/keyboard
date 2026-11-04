@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="remote_mode_boards">Boards</string>
+    <string name="if_cube">Cube</string>
+    <string name="if_cockpit">Cockpit</string>
+    <string name="if_gestures">Swipe keys</string>
+    <string name="if_puppet">Puppet</string>
+    <string name="if_fractal">Fractal</string>
+    <string name="cube_type">Type</string>
+    <string name="cube_numbers">Numbers</string>
+    <string name="cube_commands">Commands</string>
+    <string name="cube_phrases">Phrases</string>
+    <string name="cockpit_pc">The PC</string>
+    <string name="cockpit_front">In front</string>
+    <string name="cockpit_front_unavailable">This PC cannot say which program is in front (Windows with the new Beckon program can).</string>
+    <string name="cockpit_front_none">Nothing in front, or the PC has not answered yet.</string>
+    <string name="cockpit_controls">Controls</string>
+    <string name="cockpit_windows">Windows</string>
+    <string name="gest_arrows">Arrows</string>
+    <string name="gest_editing">Editing</string>
+    <string name="gest_browser">Browsing</string>
+    <string name="gest_hint">Swipe in any direction</string>
+    <string name="gest_tap">Tap  %1$s</string>
+    <string name="puppet_hint">Hold the handle and pull it. The farther, the faster the pointer. Let go to stop.</string>
+    <string name="fractal_back">Back</string>
+    <string name="fractal_latin">ABC</string>
+    <string name="fractal_arabic">ع</string>
+    <string name="fractal_forget">Forget what it learned</string>
+    <string name="fractal_level_beginner">Groups only</string>
+    <string name="fractal_level_learning">3 letters learned</string>
+    <string name="fractal_level_familiar">6 letters learned</string>
+</resources>
