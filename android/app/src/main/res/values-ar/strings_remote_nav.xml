@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="remote_tools">الأدوات</string>
-    <string name="remote_tools_hide">إخفاء الأدوات</string>
-    <string name="remote_tools_link">ربط هاتف</string>
-    <string name="remote_connection_fold">طيّ بطاقة الحاسوب</string>
-    <string name="remote_connection_unfold">إظهار بطاقة الحاسوب</string>
-</resources>

@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="remote_tools">Tools</string>
-    <string name="remote_tools_hide">Hide the tools</string>
-    <string name="remote_tools_link">Link a phone</string>
-    <string name="remote_connection_fold">Fold the PC card</string>
-    <string name="remote_connection_unfold">Show the PC card</string>
-</resources>
