@@ -115,7 +115,7 @@ class RemoteScreenTest {
     @Test
     fun `while reconnecting the controls are covered and say why`() {
         show(Fixtures.remote(connection = ConnectionState.Reconnecting("Desk PC", ConnectionState.Transport.WIFI, 2)))
-        compose.onNodeWithText(string(R.string.remote_reconnecting)).assertIsDisplayed()
+        compose.onAllNodesWithText(string(R.string.remote_reconnecting)).onFirst().assertIsDisplayed()
     }
 
     @Test
@@ -165,55 +165,91 @@ class RemoteScreenTest {
 
     // ── Keyboard ─────────────────────────────────────────────────────
 
-    private val typingField get() = compose.onNodeWithContentDescription(string(R.string.keys_field_description))
+    /** The field as it is by default: text waits in it until Send. */
+    private val typingField get() = compose.onNodeWithContentDescription(string(R.string.keys_field_description_compose))
+
+    /** The field when "Send each key at once" is on. */
+    private val liveField get() = compose.onNodeWithContentDescription(string(R.string.keys_field_description))
+
+    /** Opens Keys and turns on sending each key at once, from the field's menu. */
+    private fun openKeysLive() {
+        openTab(R.string.remote_mode_keys)
+        compose.onNodeWithContentDescription(string(R.string.keys_more)).performClick()
+        compose.settle()
+        compose.onNodeWithText(string(R.string.keys_menu_live)).performClick()
+        compose.settle()
+    }
+
+    @Test
+    fun `written text waits in the field and is sent whole with Send`() {
+        show(Fixtures.remote())
+        openTab(R.string.remote_mode_keys)
+        typingField.performTextInput("hello")
+        assertEquals(emptyList<InputEvent>(), sent)
+
+        compose.onNodeWithContentDescription(string(R.string.keys_send)).performClick()
+        compose.settle()
+        assertEquals(listOf<InputEvent>(InputEvent.TypedEdit(0, "hello")), sent)
+    }
+
+    @Test
+    fun `the text written and not sent is still there after a visit to another tab`() {
+        show(Fixtures.remote())
+        openTab(R.string.remote_mode_keys)
+        typingField.performTextInput("keep me")
+        openTab(R.string.remote_mode_pad)
+        openTab(R.string.remote_mode_keys)
+        compose.onNodeWithText("keep me").assertExists()
+        assertEquals(emptyList<InputEvent>(), sent)
+    }
 
     @Test
     fun `typed text is sent as it is typed`() {
         show(Fixtures.remote())
-        openTab(R.string.remote_mode_keys)
-        typingField.performTextInput("hello")
+        openKeysLive()
+        liveField.performTextInput("hello")
         assertEquals(listOf<InputEvent>(InputEvent.TextInput("hello")), sent)
     }
 
     @Test
     fun `autocorrect becomes backspaces and the new ending`() {
         show(Fixtures.remote())
-        openTab(R.string.remote_mode_keys)
-        typingField.performTextInput("hello")
+        openKeysLive()
+        liveField.performTextInput("hello")
         sent.clear()
 
-        typingField.performTextReplacement("help")
+        liveField.performTextReplacement("help")
         assertEquals(tap(HidKeyCodes.BACKSPACE) + tap(HidKeyCodes.BACKSPACE) + InputEvent.TextInput("p"), sent)
     }
 
     @Test
     fun `a latched control key turns the next letter into a shortcut`() {
         show(Fixtures.remote())
-        openTab(R.string.remote_mode_keys)
+        openKeysLive()
         compose.onNodeWithContentDescription("Control").performClick()
         compose.settle()
-        typingField.performTextInput("c")
+        liveField.performTextInput("c")
         assertEquals(tap(HidKeyCodes.C, InputEvent.Modifiers(leftCtrl = true)), sent)
     }
 
     @Test
     fun `Enter sends the line and the field starts afresh`() {
         show(Fixtures.remote())
-        openTab(R.string.remote_mode_keys)
-        typingField.performTextInput("ls\n")
+        openKeysLive()
+        liveField.performTextInput("ls\n")
         assertEquals(listOf<InputEvent>(InputEvent.TextInput("ls\n")), sent)
         compose.settle() // the field empties itself
 
         // Nothing is left in the field to be compared with the next line.
         sent.clear()
-        typingField.performTextInput("a")
+        liveField.performTextInput("a")
         assertEquals(listOf<InputEvent>(InputEvent.TextInput("a")), sent)
     }
 
     @Test
     fun `the bar above the phone's keyboard sends keys and takes part in chords`() {
         show(Fixtures.remote(os = HostOs.LINUX))
-        openTab(R.string.remote_mode_keys)
+        openKeysLive()
 
         compose.onNodeWithContentDescription("Tab").performClick()
         assertEquals(tap(HidKeyCodes.TAB), sent)
@@ -222,7 +258,7 @@ class RemoteScreenTest {
         sent.clear()
         compose.onNodeWithContentDescription("Super").performClick()
         compose.settle()
-        typingField.performTextInput("q")
+        liveField.performTextInput("q")
         assertEquals(tap(HidKeyCodes.Q, InputEvent.Modifiers(leftMeta = true)), sent)
     }
 
@@ -306,7 +342,7 @@ class RemoteScreenTest {
     fun `over bluetooth there is no clipboard and the limits are stated`() {
         show(Fixtures.remote(connection = ConnectionState.Connected("PC", ConnectionState.Transport.BLUETOOTH)))
         openTab(R.string.remote_mode_keys)
-        compose.onNodeWithText(string(R.string.keys_bt_limits)).assertIsDisplayed()
+        compose.onNodeWithText(string(R.string.keys_bt_limits)).assertExists()
         compose.onNodeWithText(string(R.string.keys_paste_phone)).assertDoesNotExist()
     }
 

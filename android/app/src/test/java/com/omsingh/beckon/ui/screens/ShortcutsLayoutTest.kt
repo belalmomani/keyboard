@@ -21,8 +21,8 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * The shortcuts under Keys are the same list whether the phone's own keyboard is open or not: two columns that
- * scroll up and down. (They used to turn into one row to slide sideways when there was not much room.)
+ * The shortcuts under Keys are the same list whether the phone's own keyboard is open or not: cards, three to a row,
+ * that scroll up and down. (They used to turn into one row to slide sideways when there was not much room.)
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -55,26 +55,29 @@ class ShortcutsLayoutTest {
     private fun top(label: Int) = compose.onNodeWithText(string(label)).fetchSemanticsNode().positionInRoot.y
     private fun left(label: Int) = compose.onNodeWithText(string(label)).fetchSemanticsNode().positionInRoot.x
 
-    private fun assertTwoColumnsDownTheScreen() {
-        // Two to a row: Copy and Paste side by side, then Cut and Undo in the row below.
-        assertEquals("Copy and Paste share a row", top(R.string.shortcut_copy), top(R.string.shortcut_paste), 1f)
-        assertTrue("Paste is in the second column", left(R.string.shortcut_paste) > left(R.string.shortcut_copy))
-        assertTrue("Cut starts the next row, below Copy", top(R.string.shortcut_cut) > top(R.string.shortcut_copy))
-        assertEquals("Cut and Undo share that row", top(R.string.shortcut_cut), top(R.string.shortcut_undo), 1f)
+    private fun assertCardsInRowsOfThree() {
+        val labels = listOf(R.string.shortcut_copy, R.string.shortcut_paste, R.string.shortcut_cut, R.string.shortcut_undo)
+        val tops = labels.map { top(it).toInt() }
+        // Cards sit three to a row: some share a row, and there is more than one row.
+        assertTrue("some cards share a row", tops.toSet().size < tops.size)
+        assertTrue("there is more than one row", tops.toSet().size >= 2)
+        val first = tops.min()
+        val sameRow = labels.filter { top(it).toInt() == first }
+        assertTrue("cards in a row are side by side", sameRow.map { left(it).toInt() }.toSet().size == sameRow.size)
         assertTrue("the list scrolls up and down", compose.onAllNodes(hasScrollAction()).fetchSemanticsNodes().isNotEmpty())
     }
 
     @Test
-    fun `with room to spare the shortcuts are two columns that scroll`() {
+    fun `with room to spare the shortcuts are cards in rows that scroll`() {
         openKeys()
-        assertTwoColumnsDownTheScreen()
+        assertCardsInRowsOfThree()
     }
 
     // The room left above an open phone keyboard (or on a short screen).
     @Test
     @Config(qualifiers = "w411dp-h480dp-420dpi")
-    fun `with little room the shortcuts are still two columns that scroll, not one row to slide along`() {
+    fun `with little room the shortcuts are still cards in rows that scroll, not one row to slide along`() {
         openKeys()
-        assertTwoColumnsDownTheScreen()
+        assertCardsInRowsOfThree()
     }
 }

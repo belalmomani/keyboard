@@ -40,5 +40,5 @@ for attempt in 1 2 3; do
   sleep 5
 done
 
-"$here/sign-and-notarize.sh" dmg "$image"
+bash "$here/sign-and-notarize.sh" dmg "$image"
 echo "Wrote $image"
