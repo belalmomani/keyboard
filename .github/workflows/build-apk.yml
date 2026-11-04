@@ -1,0 +1,44 @@
+name: Build APK
+
+# Builds the debug Android APK and keeps it as the artifact "beckon-debug-apk".
+# Runs on every push to main and can be started by hand (workflow_dispatch). No secrets are used:
+# the APK is the debug one, signed with the throwaway debug key.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - 'crates/beckon-protocol/**'
+      - '.github/workflows/build-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    name: Debug APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up JDK 17
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - name: Grant execute permission for gradlew
+        working-directory: android
+        run: chmod +x gradlew
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+      - name: Keep the debug APK
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: beckon-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error

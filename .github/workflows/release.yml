@@ -1,0 +1,217 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to release (e.g. v2.0.0)'
+        required: true
+        type: string
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # Stops before anything is built if the tag does not match the code, the license notice is out of date, or CI has
+  # not passed on this commit: a release is a build that has already been tried, with a tag on it.
+  check:
+    name: Check the tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Compare the tag with the app and server versions
+        id: version
+        run: |
+          VERSION="${TAG#v}"
+          BASE="${VERSION%%-*}"   # a pre-release tag such as v2.1.0-rc1 releases 2.1.0
+          APP=$(sed -nE 's/^[[:space:]]*versionName = "([^"]+)".*/\1/p' android/app/build.gradle.kts | head -n 1)
+          SERVER=$(sed -nE 's/^version = "([^"]+)".*/\1/p' Cargo.toml | head -n 1)
+          echo "Tag $TAG is version $BASE; Android app $APP; desktop server $SERVER"
+          if [ "$BASE" != "$APP" ] || [ "$BASE" != "$SERVER" ]; then
+            echo "::error::Tag $TAG is version $BASE, but the Android app is $APP and the desktop server is $SERVER. Make them match, then tag again."
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # The desktop programs ship with the licenses of the libraries inside them, which come from Cargo.lock.
+      - uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
+        with:
+          tool: cargo-about@0.9.2
+      - name: Check the third-party license notice is current
+        run: bash scripts/update-licenses.sh --check
+
+      - name: Check that CI passed on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SHA="$(git rev-parse HEAD)"
+          PASSED="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow CI --commit "$SHA" --status success --json databaseId --jq length)"
+          if [ "$PASSED" = 0 ]; then
+            echo "::error::CI has not passed on commit ${SHA:0:7}. Push it to main, wait for CI, then tag."
+            exit 1
+          fi
+
+  # Everything the release ships, built and tried exactly as CI builds and tries it for every change.
+  package:
+    name: Package
+    needs: check
+    uses: ./.github/workflows/package.yml
+    with:
+      version: ${{ needs.check.outputs.version }}
+      ref: ${{ inputs.tag || github.ref }}
+      signed: true
+    secrets: inherit
+
+  publish:
+    name: Publish the release
+    needs: package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      # For the build-provenance attestation of every file.
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Record Commit SHA
+        id: meta
+        run: |
+          COMMIT_SHA=$(git rev-parse HEAD)
+          echo "commit_sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
+
+      # Only the finished files: the signing steps leave temporary artifacts of their own, which must not be published.
+      - name: Download all artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: release-assets
+          pattern: release-*
+          merge-multiple: true
+
+      # The same files again under names without the version, so that links such as
+      # .../releases/latest/download/beckon-android.apk keep working from release to release
+      # (the website's download buttons use them).
+      - name: Add version-less copies of each file
+        working-directory: release-assets
+        run: |
+          for f in *; do
+            alias="${f/-${TAG}/}"
+            if [ -f "$f" ] && [ "$alias" != "$f" ]; then
+              cp -- "$f" "$alias"
+            fi
+          done
+          ls -la
+
+      - name: Generate Checksums
+        working-directory: release-assets
+        run: |
+          echo "Release assets staged:"
+          ls -la
+          # Write to a temporary file first, or the checksum file would list itself.
+          for f in *; do
+            if [ -f "$f" ]; then
+              sha256sum -- "$f"
+            fi
+          done > "$RUNNER_TEMP/SHA256SUMS"
+          mv "$RUNNER_TEMP/SHA256SUMS" SHA256SUMS
+          echo "Generated SHA256SUMS:"
+          cat SHA256SUMS
+
+      # A signed statement, kept by GitHub, of which workflow run built each file from which commit:
+      #   gh attestation verify <file> --repo <owner>/<repo>
+      - name: Attest where the files were built
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-checksums: release-assets/SHA256SUMS
+
+      # The release text is the changelog section for this version, followed by GitHub's own list
+      # of what changed.
+      - name: Write the release notes
+        env:
+          WINDOWS_SIGNED: ${{ needs.package.outputs.windows_signed }}
+          MACOS_SIGNED: ${{ needs.package.outputs.macos_signed }}
+        run: |
+          VERSION="${TAG#v}"
+          VERSION="${VERSION%%-*}"
+          awk -v v="$VERSION" '
+            index($0, "## [" v "]") == 1 { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "::warning::CHANGELOG.md has no section for $VERSION, so the release text is only what GitHub generates."
+          fi
+          {
+            cat <<'EOF'
+
+          ### Which file do I need?
+
+          | You have | Download |
+          | --- | --- |
+          | An Android phone | `beckon-android.apk` |
+          | A Windows PC | `beckon-windows-x86_64-setup.exe` (installer), or `beckon-windows-x86_64.exe` to run without installing |
+          | A Mac | `beckon-macos-universal.dmg` |
+          | A Linux PC | One command: `curl -fsSL https://beckon.omsingh.me/install.sh \| sh` (it picks the right file below), or download `beckon-linux-x86_64.deb` (Debian, Ubuntu, Mint), `beckon-linux-x86_64.rpm` (Fedora, openSUSE), `beckon-linux-x86_64.pkg.tar.zst` (Arch) or `beckon-linux-x86_64.tar.gz` (anything else, then run `./install.sh`) |
+
+          For a PC with no desktop, there is also a console-only server: `beckon-server-windows-x86_64.exe` (or `.zip`), `beckon-server-linux-x86_64.tar.gz` and `beckon-server-macos-universal.tar.gz`.
+
+          Beckon on the PC shows a QR code the first time it starts: scan it with the Beckon app on your phone.
+
+          ### If your system warns you
+
+          - **Android** asks to allow installs from your browser or file manager the first time: allow it for this install.
+          EOF
+            if [ "$WINDOWS_SIGNED" != "true" ]; then
+              echo '- **Windows** may say "Windows protected your PC", because this build is not code-signed yet. Choose **More info**, then **Run anyway**.'
+            fi
+            if [ "$MACOS_SIGNED" != "true" ]; then
+              echo '- **macOS** may say it cannot verify Beckon, because this build is not notarized yet. Open **System Settings > Privacy & Security** and choose **Open Anyway**. macOS also asks to let Beckon control the computer (Accessibility): allow it, or the phone cannot type or click.'
+            else
+              echo '- **macOS** asks to let Beckon control the computer (Accessibility): allow it, or the phone cannot type or click.'
+            fi
+            cat <<'EOF'
+
+          ### Check what you downloaded
+
+          Every file is listed in `SHA256SUMS`, and GitHub holds a signed statement of which build produced each one:
+
+          ```
+          gh attestation verify beckon-android.apk --repo ${{ github.repository }}
+          ```
+
+          Setup instructions are in the [README](https://github.com/${{ github.repository }}#quick-start).
+          EOF
+          } >> release-notes.md
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: ${{ env.TAG }}
+          target_commitish: ${{ steps.meta.outputs.commit_sha }}
+          name: Beckon ${{ env.TAG }}
+          body_path: release-notes.md
+          generate_release_notes: true
+          prerelease: ${{ contains(env.TAG, '-') }}
+          files: release-assets/*
