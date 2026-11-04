@@ -13,6 +13,7 @@ All notable changes are listed here, newest first. The format follows [Keep a Ch
 
 ### Fixed
 
+- **The link with another phone no longer drops when you leave the app.** While a link is open (or waiting for a phone) a small notification keeps it alive, with a Disconnect button. Without it Android put the app to sleep a few seconds after it was left.
 - **Letters lost or swapped when typing fast.** Typing on the phone's keyboard was sent as loose packets, and Wi-Fi sometimes drops or reorders those, so a letter could be missing on the PC (a pasted text was fine because it was sent whole). Each step of typing is now numbered, the PC applies the steps once each and in order and confirms them, and the phone sends again what is not confirmed. Needs the new PC program; with an older one, typing works as before.
 
 ### Added

@@ -78,4 +78,7 @@
     <string name="tv_asking_body">If you allow it, it can show its screen here and send photos and files. It cannot control this TV.</string>
     <string name="tv_waiting_screen">Waiting for it to show a screen. Press Back to end the link.</string>
     <string name="tv_files_received">%1$d files received</string>
+
+    <string name="link_keepalive_title">Linked with another device</string>
+    <string name="link_keepalive_text">Beckon keeps the link open while the app is in the background.</string>
 </resources>

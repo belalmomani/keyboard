@@ -88,6 +88,12 @@
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
 
+        <!-- Keeps a link with another phone or a TV open while the app is in the background. -->
+        <service
+            android:name=".phonelink.LinkKeepAliveService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
+
         <!-- Showing this phone's screen to a linked phone, only after the person agrees in the system's own box. -->
         <service
             android:name=".phonelink.ScreenShareService"

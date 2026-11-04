@@ -78,4 +78,7 @@
     <string name="tv_asking_body">إن سمحت، يستطيع عرض شاشته هنا وإرسال الصور والملفات. لا يستطيع التحكم بهذا التلفاز.</string>
     <string name="tv_waiting_screen">بانتظار أن يعرض شاشة. اضغط رجوع لإنهاء الربط.</string>
     <string name="tv_files_received">استُلم %1$d ملفات</string>
+
+    <string name="link_keepalive_title">مرتبط بجهاز آخر</string>
+    <string name="link_keepalive_text">يُبقي Beckon الربط مفتوحاً أثناء وجود التطبيق في الخلفية.</string>
 </resources>

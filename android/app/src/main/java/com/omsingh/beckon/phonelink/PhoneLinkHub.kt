@@ -9,6 +9,10 @@ import com.omsingh.beckon.core.phonelink.ReceivedFiles
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import com.omsingh.beckon.core.phonelink.ClientState
+import com.omsingh.beckon.core.phonelink.HostState
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,6 +35,20 @@ class PhoneLinkHub private constructor(private val app: Application) {
     /** This phone passing the PC's screen on to the linked device. */
     val pcRelay: PcScreenRelay by lazy {
         PcScreenRelay(ConnectionManager.getInstance(app), client, CoroutineScope(SupervisorJob() + Dispatchers.Default))
+    }
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    init {
+        // A link that is open, or waiting for a phone, keeps the app awake in the background (see the service).
+        scope.launch {
+            combine(client.state, host.state) { c, h ->
+                c is ClientState.Connected || c is ClientState.Connecting || c is ClientState.WaitingForApproval ||
+                    h is HostState.Waiting || h is HostState.Asking || h is HostState.Connected
+            }.collect { active ->
+                if (active) LinkKeepAliveService.start(app) else LinkKeepAliveService.stop(app)
+            }
+        }
     }
 
     private val _sharingScreen = MutableStateFlow(false)
