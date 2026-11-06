@@ -51,6 +51,8 @@ class PcScreenRelay(
         if (client.state.value !is ClientState.Connected) return
         _state.value = RelayState.Waiting
         manager.startScreenView()
+        // A TV is read from further away: the PC is asked for its sharper pictures (1280 wide), sent on as they are.
+        manager.setScreenWide("relay", true)
         var lastId = Int.MIN_VALUE
         job = scope.launch(start = CoroutineStart.LAZY) {
             manager.screenState.collect { screen ->
@@ -95,7 +97,7 @@ class PcScreenRelay(
     private fun encode(pixels: IntArray, width: Int, height: Int): ByteArray {
         val bitmap = Bitmap.createBitmap(pixels, width, height, Bitmap.Config.ARGB_8888)
         val out = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 70, out)
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 88, out)
         bitmap.recycle()
         return out.toByteArray()
     }

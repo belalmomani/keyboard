@@ -253,7 +253,23 @@ class ConnectionManager internal constructor(
     }
 
     /** Stops the pictures, and tells the PC. */
-    fun stopScreenView() = screenClient.stop()
+    @Synchronized
+    fun stopScreenView() {
+        wideOwners.clear()
+        screenClient.stop()
+    }
+
+    private val wideOwners = mutableSetOf<String>()
+
+    /**
+     * Sharper pictures while something shows them big (full screen, or passed on to a TV): each [owner] says
+     * whether it wants them, and they stay sharp while any does.
+     */
+    @Synchronized
+    fun setScreenWide(owner: String, wide: Boolean) {
+        if (wide) wideOwners += owner else wideOwners -= owner
+        screenClient.setWide(wideOwners.isNotEmpty())
+    }
 
     // ── Internal bookkeeping ─────────────────────────────────────────
 

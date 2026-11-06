@@ -152,6 +152,16 @@ android {
     }
 }
 
+// A debug build gets a version code that rises with the time it was built, so that Android offers it as an
+// "update" over the debug build installed before, not as a "replace" of the same version. (The debug app is a
+// separate app, with its own name ending in .debug, so this cannot get in the way of a release's version code.)
+androidComponents {
+    onVariants(selector().withBuildType("debug")) { variant ->
+        val minutesSince2026 = ((System.currentTimeMillis() - 1_767_225_600_000L) / 60_000L).toInt() // 2026-01-01 UTC
+        variant.outputs.forEach { output -> output.versionCode.set(300_000_000 + minutesSince2026) }
+    }
+}
+
 dependencies {
     // Compose
     val composeBom = platform(libs.androidx.compose.bom)

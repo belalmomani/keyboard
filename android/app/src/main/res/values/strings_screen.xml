@@ -13,4 +13,8 @@
     <string name="screen_failed_body">This happens while the PC is locked or shows a system permission window. Unlock it and try again.</string>
     <string name="screen_no_answer_title">The PC does not answer</string>
     <string name="screen_no_answer_body">Check that the PC is on and on the same Wi‑Fi, then try again.</string>
+
+    <string name="screen_fullscreen">Full screen</string>
+    <string name="screen_exit_fullscreen">Leave full screen</string>
+    <string name="screen_rotate">Turn sideways</string>
 </resources>

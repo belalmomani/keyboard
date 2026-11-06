@@ -549,6 +549,28 @@ impl Control for Controls {
     fn quit(&self) {
         self.0.begin_quit();
     }
+
+    fn screen_view(&self) -> bool {
+        self.0.server.screen_view_allowed()
+    }
+
+    fn set_screen_view(&self, on: bool) -> Result<(), String> {
+        self.0
+            .server
+            .set_screen_view(on)
+            .map_err(|err| err.to_string())
+    }
+
+    fn screen_viewers(&self) -> usize {
+        self.0.runtime.block_on(self.0.server.screen_viewers())
+    }
+
+    fn forget_phones(&self) -> Result<usize, String> {
+        self.0
+            .runtime
+            .block_on(self.0.server.forget_all())
+            .map_err(|err| err.to_string())
+    }
 }
 
 /// Sets up the updater: how this copy was installed decides what it can do, and where it looks is GitHub's

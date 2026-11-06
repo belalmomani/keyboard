@@ -190,6 +190,25 @@ class ScreenTest {
     }
 
     @Test
+    fun `asking for sharper pictures sends a wider request at once, and stopping goes back to the usual`() = runBlocking {
+        val c = client()
+        c.start()
+        waitFor("the first request") { starts().isNotEmpty() }
+        assertEquals(640, starts().first().maxWidth)
+
+        c.setWide(true)
+        waitFor("a wide request") { starts().any { it.maxWidth == 1280 } }
+        assertEquals(4, starts().last { it.maxWidth == 1280 }.fps)
+
+        c.stop()
+        c.start()
+        sent.clear()
+        waitFor("a usual request again") { starts().isNotEmpty() }
+        assertEquals(640, starts().first().maxWidth)
+        c.stop()
+    }
+
+    @Test
     fun `it asks again while waiting, shows a picture, and stops when told`() = runBlocking {
         val c = client()
         assertEquals(ScreenViewState.Off, c.state.value)

@@ -13,4 +13,8 @@
     <string name="screen_failed_body">يحدث هذا والحاسوب مقفل أو تظهر نافذة إذن من النظام. افتح القفل وحاول مرة أخرى.</string>
     <string name="screen_no_answer_title">الحاسوب لا يردّ</string>
     <string name="screen_no_answer_body">تأكد أن الحاسوب يعمل وعلى شبكة Wi‑Fi نفسها، ثم حاول مرة أخرى.</string>
+
+    <string name="screen_fullscreen">ملء الشاشة</string>
+    <string name="screen_exit_fullscreen">الخروج من ملء الشاشة</string>
+    <string name="screen_rotate">تدوير الشاشة</string>
 </resources>

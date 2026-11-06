@@ -48,6 +48,14 @@ pub trait Control: Send + Sync + 'static {
     /// Whether Beckon looks for updates by itself.
     fn set_auto_update_check(&self, on: bool) -> Result<(), String>;
     fn quit(&self);
+    /// Whether paired phones may see this PC's screen.
+    fn screen_view(&self) -> bool;
+    /// How many phones are looking at this PC's screen right now.
+    fn screen_viewers(&self) -> usize;
+    /// Lets paired phones see this PC's screen, or stops them at once.
+    fn set_screen_view(&self, on: bool) -> Result<(), String>;
+    /// Unpairs every phone and ends their connections. Returns how many were paired.
+    fn forget_phones(&self) -> Result<usize, String>;
 }
 
 /// What the page says about updates.
@@ -311,6 +319,17 @@ fn respond(context: &Context, request: &Request) -> Reply {
                 Err(message) => context.message_page("Beckon could not change that.", &message),
             }
         }
+        (Method::Post, "screen") => {
+            let on = query.split('&').any(|pair| pair == "on=1");
+            match context.control.set_screen_view(on) {
+                Ok(()) => Reply::redirect(303, "./"),
+                Err(message) => context.message_page("Beckon could not change that.", &message),
+            }
+        }
+        (Method::Post, "forget-phones") => match context.control.forget_phones() {
+            Ok(_) => Reply::redirect(303, "./"),
+            Err(message) => context.message_page("Beckon could not do that.", &message),
+        },
         (Method::Post, "quit") => {
             context.control.quit();
             context.message_page(
@@ -390,6 +409,8 @@ impl Context {
             paired: status.paired,
             connected: status.connected,
             autostart,
+            screen_view: self.control.screen_view(),
+            screen_viewers: self.control.screen_viewers(),
             setup: self.control.setup(),
         }))
     }
@@ -434,6 +455,8 @@ struct PageData<'a> {
     paired: usize,
     connected: usize,
     autostart: bool,
+    screen_view: bool,
+    screen_viewers: usize,
     setup: SetupView,
 }
 
@@ -564,6 +587,45 @@ fn render_page(data: &PageData<'_>) -> String {
         ("1", "Starts at login: off")
     };
 
+    let (screen_value, screen_text, screen_button) = if data.screen_view {
+        (
+            "0",
+            "Paired phones can see this PC's screen (view only).",
+            "Stop showing the screen",
+        )
+    } else {
+        (
+            "1",
+            "Paired phones cannot see this PC's screen.",
+            "Let phones see the screen",
+        )
+    };
+    let watching = match (data.screen_view, data.screen_viewers) {
+        (true, 0) => "No phone is looking at it now.".to_string(),
+        (true, 1) => "One phone is looking at it now.".to_string(),
+        (true, n) => format!("{n} phones are looking at it now."),
+        (false, _) => String::new(),
+    };
+    let screen_section = format!(
+        "<section class=\"card options\">\n\
+<h2>Screen view</h2>\n\
+<p id=\"screen-state\">{screen_text} {watching}</p>\n\
+<form method=\"post\" action=\"screen?on={screen_value}\"><button type=\"submit\">{screen_button}</button></form>\n\
+</section>\n"
+    );
+    let phones_section = if data.paired > 0 {
+        format!(
+            "<details class=\"options\">\n\
+<summary>Disconnect phones</summary>\n\
+<p>This disconnects {} and removes them from this PC. Each one has to pair again with a new code.</p>\n\
+<form method=\"post\" action=\"forget-phones\"><button type=\"submit\" class=\"quiet\">Yes, disconnect and forget them</button></form>\n\
+</details>\n",
+            phones_noun(data.paired)
+        )
+    } else {
+        String::new()
+    };
+
     format!(
         "<!doctype html>\n\
 <html lang=\"en\">\n\
@@ -606,6 +668,8 @@ fn render_page(data: &PageData<'_>) -> String {
 <p>This code has run out.</p>\n\
 <form method=\"post\" action=\"new\"><button type=\"submit\">Show a new code</button></form>\n\
 </div>\n\
+{screen_section}\
+{phones_section}\
 <details>\n\
 <summary>This PC</summary>\n\
 <p>Name: <code>{name}</code><br>Fingerprint: <code>{fingerprint}</code></p>\n\
@@ -630,6 +694,8 @@ fn render_page(data: &PageData<'_>) -> String {
 </body>\n\
 </html>\n",
         qr = data.qr_svg,
+        screen_section = screen_section,
+        phones_section = phones_section,
         allow_notice = allow_notice(&data.setup),
         address_line = address_line,
         version = escape(data.version),
@@ -642,6 +708,14 @@ fn render_page(data: &PageData<'_>) -> String {
         seconds = data.seconds,
         blocked = u8::from(data.setup.block.is_some()),
     )
+}
+
+fn phones_noun(count: usize) -> String {
+    if count == 1 {
+        "the 1 paired phone".to_owned()
+    } else {
+        format!("all {count} paired phones")
+    }
 }
 
 fn phones(count: usize, what: &str) -> String {
@@ -693,6 +767,9 @@ mod tests {
         installs: AtomicUsize,
         names: Mutex<Vec<String>>,
         addresses: Mutex<Vec<std::net::Ipv4Addr>>,
+        screen: AtomicBool,
+        viewers: AtomicUsize,
+        forgets: AtomicUsize,
     }
 
     impl Fake {
@@ -713,6 +790,9 @@ mod tests {
                 checks: AtomicUsize::new(0),
                 installs: AtomicUsize::new(0),
                 names: Mutex::new(Vec::new()),
+                screen: AtomicBool::new(false),
+                viewers: AtomicUsize::new(0),
+                forgets: AtomicUsize::new(0),
                 addresses: Mutex::new(vec![
                     std::net::Ipv4Addr::new(192, 168, 1, 20),
                     std::net::Ipv4Addr::new(10, 0, 0, 5),
@@ -771,6 +851,20 @@ mod tests {
         }
         fn quit(&self) {
             self.quit.store(true, Ordering::SeqCst);
+        }
+        fn screen_view(&self) -> bool {
+            self.screen.load(Ordering::SeqCst)
+        }
+        fn screen_viewers(&self) -> usize {
+            self.viewers.load(Ordering::SeqCst)
+        }
+        fn set_screen_view(&self, on: bool) -> Result<(), String> {
+            self.screen.store(on, Ordering::SeqCst);
+            Ok(())
+        }
+        fn forget_phones(&self) -> Result<usize, String> {
+            self.forgets.fetch_add(1, Ordering::SeqCst);
+            Ok(self.paired.swap(0, Ordering::SeqCst))
         }
     }
 
@@ -1507,5 +1601,57 @@ mod tests {
         let b = Panel::start(fake.clone(), identity()).unwrap();
         assert_ne!(a.url(), b.url());
         assert_ne!(make_secret(), make_secret());
+    }
+
+    #[test]
+    fn the_screen_view_switch_is_on_the_page_and_works() {
+        let fake = Fake::new();
+        let ctx = context(&fake);
+        let page = body(&respond(&ctx, &get("/SECRET/")));
+        assert!(page.contains("action=\"screen?on=1\""));
+        assert!(page.contains("Paired phones cannot see this PC's screen."));
+
+        assert_eq!(respond(&ctx, &post("/SECRET/screen?on=1")).status, 303);
+        assert!(fake.screen.load(Ordering::SeqCst));
+        let page = body(&respond(&ctx, &get("/SECRET/")));
+        assert!(page.contains("action=\"screen?on=0\""));
+
+        assert_eq!(respond(&ctx, &post("/SECRET/screen?on=0")).status, 303);
+        assert!(!fake.screen.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn the_page_says_how_many_phones_are_looking_at_the_screen() {
+        let fake = Fake::new();
+        let ctx = context(&fake);
+        fake.screen.store(true, Ordering::SeqCst);
+        assert!(body(&respond(&ctx, &get("/SECRET/"))).contains("No phone is looking at it now."));
+        fake.viewers.store(1, Ordering::SeqCst);
+        assert!(body(&respond(&ctx, &get("/SECRET/"))).contains("One phone is looking at it now."));
+        fake.viewers.store(3, Ordering::SeqCst);
+        assert!(body(&respond(&ctx, &get("/SECRET/"))).contains("3 phones are looking at it now."));
+        // Nothing is said while the view is off.
+        fake.screen.store(false, Ordering::SeqCst);
+        assert!(!body(&respond(&ctx, &get("/SECRET/"))).contains("looking at it now"));
+    }
+
+    #[test]
+    fn phones_are_disconnected_only_by_a_post_and_only_when_some_are_paired() {
+        let fake = Fake::new();
+        let ctx = context(&fake);
+        assert!(!body(&respond(&ctx, &get("/SECRET/"))).contains("forget-phones"));
+
+        fake.paired.store(2, Ordering::SeqCst);
+        let page = body(&respond(&ctx, &get("/SECRET/")));
+        assert!(page.contains("all 2 paired phones"));
+        assert!(page.contains("action=\"forget-phones\""));
+        assert_eq!(fake.forgets.load(Ordering::SeqCst), 0);
+
+        assert_eq!(respond(&ctx, &get("/SECRET/forget-phones")).status, 404);
+        assert_eq!(fake.forgets.load(Ordering::SeqCst), 0);
+
+        assert_eq!(respond(&ctx, &post("/SECRET/forget-phones")).status, 303);
+        assert_eq!(fake.forgets.load(Ordering::SeqCst), 1);
+        assert_eq!(fake.paired.load(Ordering::SeqCst), 0);
     }
 }

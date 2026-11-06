@@ -6,6 +6,9 @@ All notable changes are listed here, newest first. The format follows [Keep a Ch
 
 ### Changed
 
+- **The PC's screen can fill the phone.** Tap the picture, or the full-screen button on it, and it covers the whole screen, sharper (the PC sends a bigger picture while it is open), with pinch to zoom, drag to move, a double tap to jump in and out, and a button to turn it sideways. Shown on a TV, the PC's screen is now sent at the bigger size and at higher quality, so text can be read.
+- **The PC's page says how many phones are looking at the screen** next to the switch that lets them (or stops them at once).
+- **A debug build now installs as an update**, not a "replace": its version code rises with the time it was built.
 - **Fewer menus, more room.** The bar keeps Pad and Keys, and its third place opens a sheet that slides up from the bottom with every other tool (Media, Quick control, Boards, Library, Screen, Link a phone) as big buttons. A small arrow strip at the bottom (tap or swipe up) opens it too; picking a tool, or the small arrow in the sheet, closes it. The PC card at the top folds to a thin strip with a small arrow.
 - **Typing is sent after you write it.** In the Keys tab the text stays in the field until you press Send (the button or the keyboard's Send key), so the PC gets whole words and sentences, not fragments. Copy, paste and the shortcuts still act at once. Your unsent text is kept if you visit another tab. "Send every key at once" is still in the field's menu for those who want it.
 - **A cleaner Remote screen.** The PC's name and link quality sit in one card at the top, the tabs are one rounded bar, and the shortcuts are cards with an icon, a name and the keys they press.

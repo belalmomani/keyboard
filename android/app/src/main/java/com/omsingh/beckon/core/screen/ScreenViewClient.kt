@@ -56,6 +56,9 @@ class ScreenViewClient(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     private val maxWidth: Int = 640,
     private val fps: Int = 3,
+    /** What is asked for while the picture is shown big (full screen, or passed on to a TV): sharper, a little slower. */
+    private val wideMaxWidth: Int = 1280,
+    private val wideFps: Int = 4,
     private val firstAnswerWaitMs: Long = 1_000,
     private val askAgainMs: Long = 4_000,
     private val giveUpAfterMs: Long = 9_000,
@@ -75,6 +78,35 @@ class ScreenViewClient(
     @Volatile
     private var job: Job? = null
 
+    @Volatile
+    private var wide = false
+
+    /**
+     * Asks for sharper pictures (or the usual ones again). The PC changes over at once; while no view is running
+     * this only remembers the choice for the next one.
+     */
+    fun setWide(on: Boolean) {
+        if (wide == on) return
+        wide = on
+        if (job?.isActive == true) {
+            scope.launch { sendStart() }
+        }
+    }
+
+    private fun sendStart() {
+        try {
+            dispatch(
+                InputEvent.ScreenView(
+                    start = true,
+                    maxWidth = if (wide) wideMaxWidth else maxWidth,
+                    fps = if (wide) wideFps else fps,
+                ),
+            )
+        } catch (t: Throwable) {
+            Log.w(TAG, "could not ask for the screen: ${t.javaClass.simpleName}")
+        }
+    }
+
     /** Starts asking for pictures. Does nothing while it is already doing so. */
     @Synchronized
     fun start() {
@@ -84,11 +116,7 @@ class ScreenViewClient(
         _state.value = ScreenViewState.Waiting
         job = scope.launch {
             while (isActive) {
-                try {
-                    dispatch(InputEvent.ScreenView(start = true, maxWidth = maxWidth, fps = fps))
-                } catch (t: Throwable) {
-                    Log.w(TAG, "could not ask for the screen: ${t.javaClass.simpleName}")
-                }
+                sendStart()
                 delay(if (_state.value is ScreenViewState.Showing) askAgainMs else firstAnswerWaitMs)
                 if (clock() - lastHeard > giveUpAfterMs) {
                     _state.value = ScreenViewState.Unavailable(ScreenViewState.Reason.NoAnswer)
@@ -112,6 +140,7 @@ class ScreenViewClient(
             }
         }
         assembler.reset()
+        wide = false
         _state.value = ScreenViewState.Off
     }
 
@@ -121,6 +150,7 @@ class ScreenViewClient(
         job?.cancel()
         job = null
         assembler.reset()
+        wide = false
         _state.value = ScreenViewState.Off
     }
 

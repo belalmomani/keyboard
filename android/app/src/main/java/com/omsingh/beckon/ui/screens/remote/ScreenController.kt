@@ -11,6 +11,9 @@ class ScreenController(private val manager: ConnectionManager) {
     /** Asks the PC for pictures of its screen. */
     fun start() = manager.startScreenView()
 
+    /** Sharper pictures while they are shown full screen; the usual ones when it is left. */
+    fun setWide(wide: Boolean) = manager.setScreenWide("fullscreen", wide)
+
     /** Stops them, and tells the PC. */
     fun stop() = manager.stopScreenView()
 }

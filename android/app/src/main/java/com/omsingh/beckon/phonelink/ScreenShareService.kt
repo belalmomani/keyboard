@@ -204,7 +204,7 @@ class ScreenShareService : Service() {
         private const val NOTIFICATION_ID = 0xC0FFEF
         private const val MAX_SIDE = 1280f
         private const val FRAME_INTERVAL_MS = 350L
-        private const val JPEG_QUALITY = 60
+        private const val JPEG_QUALITY = 80
 
         /** Starts showing the screen, with what the system's permission box answered. */
         fun start(context: Context, resultCode: Int, data: Intent) {
