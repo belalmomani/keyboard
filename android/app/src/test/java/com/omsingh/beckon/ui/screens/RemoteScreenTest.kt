@@ -3,6 +3,7 @@ package com.omsingh.beckon.ui.screens
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
@@ -187,7 +188,7 @@ class RemoteScreenTest {
         typingField.performTextInput("hello")
         assertEquals(emptyList<InputEvent>(), sent)
 
-        compose.onNodeWithContentDescription(string(R.string.keys_send)).performClick()
+        compose.onAllNodesWithContentDescription(string(R.string.keys_send)).onFirst().performClick()
         compose.settle()
         assertEquals(listOf<InputEvent>(InputEvent.TypedEdit(0, "hello")), sent)
     }
@@ -208,7 +209,7 @@ class RemoteScreenTest {
         show(Fixtures.remote())
         openKeysLive()
         liveField.performTextInput("hello")
-        assertEquals(listOf<InputEvent>(InputEvent.TextInput("hello")), sent)
+        assertEquals(listOf<InputEvent>(InputEvent.TypedEdit(0, "hello")), sent)
     }
 
     @Test
@@ -219,7 +220,7 @@ class RemoteScreenTest {
         sent.clear()
 
         liveField.performTextReplacement("help")
-        assertEquals(tap(HidKeyCodes.BACKSPACE) + tap(HidKeyCodes.BACKSPACE) + InputEvent.TextInput("p"), sent)
+        assertEquals(listOf<InputEvent>(InputEvent.TypedEdit(2, "p")), sent)
     }
 
     @Test
@@ -237,13 +238,13 @@ class RemoteScreenTest {
         show(Fixtures.remote())
         openKeysLive()
         liveField.performTextInput("ls\n")
-        assertEquals(listOf<InputEvent>(InputEvent.TextInput("ls\n")), sent)
+        assertEquals(listOf<InputEvent>(InputEvent.TypedEdit(0, "ls\n")), sent)
         compose.settle() // the field empties itself
 
         // Nothing is left in the field to be compared with the next line.
         sent.clear()
         liveField.performTextInput("a")
-        assertEquals(listOf<InputEvent>(InputEvent.TextInput("a")), sent)
+        assertEquals(listOf<InputEvent>(InputEvent.TypedEdit(0, "a")), sent)
     }
 
     @Test

@@ -140,6 +140,14 @@ impl SessionTable {
         self.sessions.is_empty()
     }
 
+    /// How many sessions are looking at the screen right now.
+    pub fn screen_viewers(&self) -> usize {
+        self.sessions
+            .values()
+            .filter(|session| session.screen.as_ref().is_some_and(|view| !view.stopped()))
+            .count()
+    }
+
     pub fn contains(&self, addr: &SocketAddr) -> bool {
         self.sessions.contains_key(addr)
     }

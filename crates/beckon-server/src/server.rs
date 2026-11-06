@@ -162,12 +162,7 @@ impl ServerHandle {
 
     /// How many phones are looking at this PC's screen right now.
     pub async fn screen_viewers(&self) -> usize {
-        let state = self.shared.state.lock().await;
-        state
-            .sessions
-            .values()
-            .filter(|session| session.screen.as_ref().is_some_and(|view| !view.stopped()))
-            .count()
+        self.shared.state.lock().await.sessions.screen_viewers()
     }
 
     pub async fn status(&self) -> Status {
