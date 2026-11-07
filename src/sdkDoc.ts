@@ -45,3 +45,16 @@ ${perms}
 التوقيع: python tools/sign_tarpkg.py sign in.tarpkg out.tarpkg --key my.key
 `;
 }
+
+/** نص طلب جاهز لأي ذكاء اصطناعي ليكتب manifest.json مطابقاً لصيغة Terminal AR. */
+export function aiPrompt(goal: string): string {
+  const perms = Object.keys(PERM_LABELS).join(", ");
+  const want = goal.trim() || "[اكتب هنا ما تريد أن تفعله الأداة]";
+  return `اكتب لي ملف manifest.json لأداة Terminal AR على Windows بهذه القواعد:
+- JSON فقط بلا أي شرح قبله أو بعده، وبلا فواصل زائدة، وكل أمر في عنصر منفصل داخل steps.
+- الحقول: id (إنجليزي صغير وأرقام وشرطة - فقط، يبدأ بحرف، بلا _ ولا مسافات)، name (عربي)، developer، version مثل 1.0.0، description، platforms: ["windows"], kind: "command", engine: "shell", sdkVersion: "1", permissions (يجب أن تتضمن "process.run")، actions.
+- كل action فيه: id (بنفس قاعدة id)، title (عنوان الزر بالعربية)، description، shell: "powershell"، steps: [أمر PowerShell في كل عنصر]. اختياري: "confirm": true لسؤال المستخدم قبل التشغيل.
+- الصلاحيات المعروفة: ${perms}. أعلن في permissions كل ما تحتاجه أوامرك.
+- لا تستخدم أوامر تحتاج صلاحيات المسؤول، ولا تحذف أو تغيّر شيئاً في النظام، ولا تنزّل ملفات.
+المطلوب: أداة تقوم بـ: ${want}`;
+}

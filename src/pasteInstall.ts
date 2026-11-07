@@ -1,7 +1,9 @@
+import { isAdmin } from "./adminState";
 import { api, type Diag } from "./api";
-import { mount, textDialog } from "./dialog";
+import { mount, promptDialog, textDialog } from "./dialog";
 import { h } from "./dom";
 import { jsonPathLines, lineForPath } from "./jsonPath";
+import { aiPrompt } from "./sdkDoc";
 import { afterInstall } from "./toolsPanel";
 
 function diagText(diags: Diag[], text: string): string {
@@ -13,6 +15,39 @@ function diagText(diags: Diag[], text: string): string {
       return `${d.severity === "error" ? "✘" : "⚠"} السطر ${line}: ${d.message}${d.hint ? `\n    الحل: ${d.hint}` : ""}`;
     })
     .join("\n");
+}
+
+async function copyText(t: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(t);
+    return true;
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = t;
+    document.body.append(ta);
+    ta.select();
+    let ok = false;
+    try {
+      ok = document.execCommand("copy");
+    } catch {
+      ok = false;
+    }
+    ta.remove();
+    return ok;
+  }
+}
+
+/** ينسخ طلباً جاهزاً لأي ذكاء اصطناعي (يسأل أولاً ماذا تريد من الأداة). */
+export async function copyAiPrompt(): Promise<void> {
+  if (!isAdmin()) return;
+  const goal = await promptDialog("طلب للذكاء الاصطناعي", "ماذا تريد أن تفعل الأداة؟ (اتركه فارغاً لتكتبه بنفسك لاحقاً)");
+  if (goal === null) return;
+  const text = aiPrompt(goal);
+  if (await copyText(text)) {
+    await textDialog("تم النسخ", "نُسخ الطلب. الصقه عند أي ذكاء اصطناعي، ثم انسخ ناتجه (JSON فقط) والصقه هنا واضغط «فحص».");
+  } else {
+    await textDialog("انسخ الطلب بنفسك", text);
+  }
 }
 
 /** تثبيت أداة بلصق كود manifest.json مباشرة (بلا ملف ولا مشروع). */
@@ -75,6 +110,7 @@ export function pasteInstallDialog(): Promise<void> {
       h(
         "div",
         { class: "dialog-actions" },
+        h("button", { class: "btn admin-only", text: "نسخ طلب للذكاء الاصطناعي", title: "طلب جاهز تعطيه لأي ذكاء اصطناعي ليكتب لك الكود بالصيغة الصحيحة", onclick: () => void copyAiPrompt() }),
         h("button", { class: "btn", text: "فحص", onclick: () => void check() }),
         installBtn,
         h("button", { class: "btn", text: "إغلاق", onclick: done }),

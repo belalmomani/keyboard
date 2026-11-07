@@ -1,3 +1,4 @@
+import { isAdmin } from "./adminState";
 import { api, type InstallOutcome, type ToolInfo } from "./api";
 import { runTool } from "./actions";
 import { confirmDialog, textDialog } from "./dialog";
@@ -23,7 +24,7 @@ export function bytesToB64(buf: ArrayBuffer): string {
 export async function afterInstall(out: InstallOutcome): Promise<void> {
   await refreshTools();
   if (out.warnings.length) await textDialog("تنبيهات التثبيت", out.warnings.join("\n\n"));
-  if (out.tool.manifest.permissions.length > 0) {
+  if (out.tool.manifest.permissions.length > 0 && isAdmin()) {
     try {
       const info = await api.toolSecurity(out.tool.id);
       if (await permissionsDialog(out.tool, info)) await refreshTools();
@@ -170,14 +171,14 @@ function card(t: ToolInfo): HTMLElement {
       { class: "tool-actions" },
       h("button", { class: "btn small primary", text: "تشغيل", disabled: !t.enabled, onclick: () => void runTool(t) }),
       h("button", { class: "btn small", text: "تفاصيل", onclick: () => void showDetails(t) }),
-      h("button", { class: "btn small", text: t.enabled ? "إيقاف" : "تفعيل", onclick: () => void toggleEnabled(t) }),
+      isAdmin() ? h("button", { class: "btn small", text: t.enabled ? "إيقاف" : "تفعيل", onclick: () => void toggleEnabled(t) }) : null,
       h("button", {
         class: "btn small" + (pinned ? " active" : ""),
         text: pinned ? "إلغاء التثبيت" : "تثبيت 📌",
         onclick: () => togglePin(`tool:${t.id}`),
       }),
       builtin ? null : h("button", { class: "btn small", text: "تعديل", title: "يفتح الأداة في الاستوديو", onclick: () => void editInStudio(t) }),
-      builtin ? null : h("button", { class: "btn small", text: "الصلاحيات", onclick: () => void editPermissions(t) }),
+      builtin || !isAdmin() ? null : h("button", { class: "btn small", text: "الصلاحيات", onclick: () => void editPermissions(t) }),
       builtin ? null : h("button", { class: "btn small", text: "فحص", onclick: () => void rescan(t) }),
       builtin ? null : h("button", { class: "btn small danger", text: "إزالة", onclick: () => void uninstall(t) }),
     ),

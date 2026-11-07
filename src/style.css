@@ -542,3 +542,17 @@ body[data-mode="pro"] .tree .cmd { display: none; }
 .tf-summary { font-size: 13px; padding: 6px 8px; border-radius: 6px; margin-bottom: 6px; }
 .tf-summary.ok { color: var(--accent); border: 1px solid var(--accent-dim); }
 .tf-summary.bad { color: #f87171; border: 1px solid #7f2d2d; }
+
+/* ---- المشرف ---- */
+.adm-dialog { max-width: 640px; max-height: 90vh; overflow: auto; }
+.adm-table { margin: 8px 0; border: 1px solid var(--border); border-radius: 8px; }
+.adm-row { display: flex; justify-content: space-between; gap: 12px; padding: 5px 10px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.adm-row:last-child { border-bottom: 0; }
+.adm-k { color: var(--muted); }
+.adm-v { direction: ltr; word-break: break-all; text-align: left; }
+.adm-actions { flex-wrap: wrap; }
+.adm-out { background: #070a0e; padding: 8px 10px; border-radius: 6px; font-size: 12px; white-space: pre-wrap; max-height: 220px; overflow: auto; margin: 8px 0; }
+.adm-out:empty { display: none; }
+
+.admin-only { display: none !important; }
+body.is-admin .admin-only { display: inline-block !important; }

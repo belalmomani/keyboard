@@ -7,6 +7,7 @@ import { createEditor, type CodeEditor } from "./editor";
 import { PERM_LABELS, formatReport } from "./securityUi";
 import { sdkDoc } from "./sdkDoc";
 import { openGuided } from "./guided";
+import { copyAiPrompt } from "./pasteInstall";
 import { openToolForm } from "./toolForm";
 import { state } from "./state";
 import { setStatus } from "./terminals";
@@ -706,6 +707,7 @@ export function initStudio(): void {
     btn("سجل التنفيذ", () => void showToolLog(), "", true),
     btn("المحركات", () => void runtimesDialog()),
     btn("SDK", () => void textDialog("Terminal AR SDK", sdkDoc())),
+    btn("طلب للذكاء الاصطناعي", () => void copyAiPrompt(), "admin-only", false, "ينسخ طلباً جاهزاً لأي ذكاء اصطناعي ليكتب لك manifest.json بالصيغة الصحيحة"),
     review,
     h("span", { class: "spacer" }),
     btn("إغلاق", () => {

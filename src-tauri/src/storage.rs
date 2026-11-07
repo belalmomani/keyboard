@@ -599,6 +599,25 @@ impl Db {
         Ok(())
     }
 
+    /// عدد صفوف جدول من قائمة بيضاء (لا يُمرَّر اسم من الخارج إلى SQL).
+    pub fn count_rows(&self, table: &str) -> Result<i64, String> {
+        const ALLOWED: [&str; 8] = [
+            "favorites",
+            "history",
+            "sessions",
+            "tools",
+            "tool_log",
+            "tool_grants",
+            "trusted_keys",
+            "audit_log",
+        ];
+        if !ALLOWED.contains(&table) {
+            return Err("جدول غير مسموح".into());
+        }
+        let sql = format!("SELECT COUNT(*) FROM {table}");
+        self.c()?.query_row(&sql, [], |r| r.get(0)).map_err(err)
+    }
+
     pub fn audit_recent(&self, limit: u32) -> Result<Vec<AuditRow>, String> {
         let c = self.c()?;
         let mut st = c
