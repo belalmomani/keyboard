@@ -3,8 +3,6 @@ import type { CmdItem, ShellReq } from "./commandTree";
 import { chooseDialog, confirmDialog, textDialog } from "./dialog";
 import { permissionsDialog, SIG_LABELS } from "./securityUi";
 import { emit, state } from "./state";
-import { isAdmin } from "./adminState";
-import { tryAdmin, tryExit } from "./admin";
 import { ensureSession, ensureToolSession, focusActive, setStatus, writeTo } from "./terminals";
 
 const PERM_TAG = "[PERMISSIONS]";
@@ -156,10 +154,6 @@ export async function runTool(tool: ToolInfo, actionId?: string): Promise<boolea
 
 /** يعرض نافذة الصلاحيات بعد رفض النواة لنقص المنح. */
 async function offerPermissions(tool: ToolInfo, detail: string): Promise<boolean> {
-  if (!isAdmin()) {
-    await textDialog("تحتاج موافقة المشرف", `الأداة «${tool.name}» تحتاج صلاحيات لم تُمنح بعد، والموافقة عليها من صلاحيات المشرف.`);
-    return false;
-  }
   let info;
   try {
     info = await api.toolSecurity(tool.id);
@@ -181,15 +175,10 @@ const RUN_RE = /^run\s+([a-z][a-z0-9-]*)(?:\s+([a-z][a-z0-9-]*))?$/i;
 export async function runBarCommand(text: string): Promise<boolean> {
   const m = RUN_RE.exec(text.trim());
   if (!m) {
-    // بوابة المشرف المخفية: لا تُظهر أي أثر إن لم تنجح
-    const t = text.trim();
-    const mm = /^run\s+(\S+)$/i.exec(t);
-    if (mm && (await tryAdmin(mm[1]))) return true;
     setStatus("الصيغة: Run <معرّف الأداة>  مثال: Run net");
     return false;
   }
   const id = m[1].toLowerCase();
-  if (id === "ext" && !m[2] && (await tryExit())) return true;
   const tool = state.tools.find((t) => t.id === id);
   if (!tool) {
     setStatus(`لا توجد أداة بالمعرّف «${id}»`);

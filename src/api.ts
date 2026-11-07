@@ -205,25 +205,7 @@ export interface Runtimes {
   hostTools: { name: string; version: string | null }[];
 }
 
-export interface AdminInfo {
-  version: string;
-  dataDir: string;
-  toolsDir: string;
-  studioDir: string;
-  dbBytes: number;
-  counts: [string, number][];
-}
-
 export const api = {
-  adminProbe: (secret: string) => invoke<boolean>("admin_probe", { secret }),
-  adminUnlock: (secret: string, name: string, year: string) =>
-    invoke<void>("admin_unlock", { secret, name, year }),
-  adminLock: () => invoke<void>("admin_lock"),
-  adminStatus: () => invoke<boolean>("admin_status"),
-  adminInfo: () => invoke<AdminInfo>("admin_info"),
-  adminOpenDataDir: () => invoke<void>("admin_open_data_dir"),
-  adminRescanAll: () => invoke<[string, string][]>("admin_rescan_all"),
-  adminAudit: (limit: number) => invoke<AuditRow[]>("admin_audit", { limit }),
   getSetting: (key: string) => invoke<string | null>("setting_get", { key }),
   setSetting: (key: string, value: string) => invoke<void>("setting_set", { key, value }),
   favoritesList: () => invoke<string[]>("favorites_list"),

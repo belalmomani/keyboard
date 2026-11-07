@@ -1,4 +1,3 @@
-mod admin;
 mod plugin;
 mod security;
 mod storage;
@@ -199,14 +198,7 @@ async fn tool_uninstall(
 }
 
 #[tauri::command]
-async fn tool_set_enabled(
-    adm: State<'_, admin::AdminState>,
-    db: State<'_, Db>,
-    id: String,
-    enabled: bool,
-) -> Result<(), String> {
-    adm.require()
-        .map_err(|_| "تفعيل/إيقاف الأدوات من صلاحيات المشرف".to_string())?;
+async fn tool_set_enabled(db: State<'_, Db>, id: String, enabled: bool) -> Result<(), String> {
     plugin::set_enabled(&db, &id, enabled)
 }
 
@@ -241,13 +233,10 @@ async fn tool_security(db: State<'_, Db>, id: String) -> Result<SecurityInfo, St
 
 #[tauri::command]
 async fn tool_set_grants(
-    adm: State<'_, admin::AdminState>,
     db: State<'_, Db>,
     id: String,
     permissions: Vec<String>,
 ) -> Result<(), String> {
-    adm.require()
-        .map_err(|_| "الموافقة على صلاحيات الأدوات من صلاحيات المشرف".to_string())?;
     security::set_grants(&db, &id, &permissions)
 }
 
@@ -298,149 +287,6 @@ async fn trusted_remove(db: State<'_, Db>, key_id: String) -> Result<(), String>
 #[tauri::command]
 async fn audit_recent(db: State<'_, Db>, limit: u32) -> Result<Vec<AuditRow>, String> {
     db.audit_recent(limit)
-}
-
-// ---------------- المشرف (مخفي) ----------------
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct AdminInfo {
-    version: String,
-    data_dir: String,
-    tools_dir: String,
-    studio_dir: String,
-    db_bytes: u64,
-    counts: Vec<(String, i64)>,
-}
-
-#[tauri::command]
-async fn admin_probe(st: State<'_, admin::AdminState>, secret: String) -> Result<bool, String> {
-    let st = st.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || st.probe(&secret))
-        .await
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-async fn admin_unlock(
-    st: State<'_, admin::AdminState>,
-    db: State<'_, Db>,
-    secret: String,
-    name: String,
-    year: String,
-) -> Result<(), String> {
-    let h = st.inner().clone();
-    let r = tauri::async_runtime::spawn_blocking(move || h.unlock(&secret, &name, &year))
-        .await
-        .map_err(|e| e.to_string())?;
-    match &r {
-        Ok(()) => {
-            let _ = db.audit_add("admin_unlock", "admin", "نجاح");
-        }
-        Err(_) => {
-            let _ = db.audit_add("admin_unlock_fail", "admin", "محاولة فاشلة");
-        }
-    }
-    r
-}
-
-#[tauri::command]
-async fn admin_lock(st: State<'_, admin::AdminState>) -> Result<(), String> {
-    st.lock();
-    Ok(())
-}
-
-#[tauri::command]
-async fn admin_status(st: State<'_, admin::AdminState>) -> Result<bool, String> {
-    Ok(st.is_unlocked())
-}
-
-#[tauri::command]
-async fn admin_info(
-    st: State<'_, admin::AdminState>,
-    db: State<'_, Db>,
-    tools: State<'_, ToolsDir>,
-    studio: State<'_, StudioDir>,
-) -> Result<AdminInfo, String> {
-    st.require()?;
-    let data = tools
-        .0
-        .parent()
-        .map(|p| p.to_path_buf())
-        .unwrap_or_default();
-    let db_bytes = std::fs::metadata(data.join("terminal-ar.db"))
-        .map(|m| m.len())
-        .unwrap_or(0);
-    let mut counts = Vec::new();
-    for t in [
-        "tools",
-        "tool_log",
-        "history",
-        "sessions",
-        "favorites",
-        "trusted_keys",
-        "audit_log",
-    ] {
-        counts.push((t.to_string(), db.count_rows(t)?));
-    }
-    Ok(AdminInfo {
-        version: env!("CARGO_PKG_VERSION").to_string(),
-        data_dir: data.display().to_string(),
-        tools_dir: tools.0.display().to_string(),
-        studio_dir: studio.0.display().to_string(),
-        db_bytes,
-        counts,
-    })
-}
-
-#[tauri::command]
-async fn admin_open_data_dir(
-    st: State<'_, admin::AdminState>,
-    tools: State<'_, ToolsDir>,
-) -> Result<(), String> {
-    st.require()?;
-    let data = tools.0.parent().ok_or("مسار غير معروف")?.to_path_buf();
-    #[cfg(windows)]
-    {
-        std::process::Command::new("explorer")
-            .arg(&data)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-        Ok(())
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = data;
-        Err("فتح المجلد مدعوم على ويندوز فقط حالياً".into())
-    }
-}
-
-#[tauri::command]
-async fn admin_rescan_all(
-    st: State<'_, admin::AdminState>,
-    db: State<'_, Db>,
-) -> Result<Vec<(String, String)>, String> {
-    st.require()?;
-    let mut out = Vec::new();
-    for t in db.tools_list()? {
-        let r = match security::rescan(&db, &t.id) {
-            Ok(rep) => rep.risk,
-            Err(e) => format!("خطأ: {e}"),
-        };
-        out.push((t.id, r));
-    }
-    let _ = db.audit_add("admin_rescan_all", "admin", &format!("{} أداة", out.len()));
-    Ok(out)
-}
-
-#[tauri::command]
-async fn admin_audit(
-    st: State<'_, admin::AdminState>,
-    db: State<'_, Db>,
-    limit: u32,
-) -> Result<Vec<AuditRow>, String> {
-    st.require()?;
-    db.audit_recent(limit.min(1000))
 }
 
 // ---------------- Studio (المرحلة 5) ----------------
@@ -590,7 +436,6 @@ async fn studio_runtimes() -> Result<Runtimes, String> {
 pub fn run() {
     let app = tauri::Builder::default()
         .manage(TerminalEngine::new())
-        .manage(admin::AdminState::default())
         .setup(|app| {
             let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
             std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -638,14 +483,6 @@ pub fn run() {
             trusted_add,
             trusted_remove,
             audit_recent,
-            admin_probe,
-            admin_unlock,
-            admin_lock,
-            admin_status,
-            admin_info,
-            admin_open_data_dir,
-            admin_rescan_all,
-            admin_audit,
             studio_projects,
             studio_create,
             studio_import,

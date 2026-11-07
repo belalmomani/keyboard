@@ -98,7 +98,7 @@ export function textDialog(title: string, body: string): Promise<void> {
 }
 
 /** نافذة إدخال نص. تعيد النص أو null عند الإلغاء. */
-export function promptDialog(title: string, label: string, initial = "", ltr = false, secret = false): Promise<string | null> {
+export function promptDialog(title: string, label: string, initial = "", ltr = false): Promise<string | null> {
   return new Promise((resolve) => {
     let handle: { close: () => void } | null = null;
     const done = (v: string | null) => {
@@ -109,7 +109,6 @@ export function promptDialog(title: string, label: string, initial = "", ltr = f
     input.className = "text-input";
     input.value = initial;
     if (ltr) input.dir = "ltr";
-    if (secret) input.type = "password";
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") done(input.value.trim());
     });
