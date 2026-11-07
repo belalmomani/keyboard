@@ -8,6 +8,8 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import com.omsingh.beckon.R
@@ -182,14 +184,25 @@ class RemoteScreenTest {
     }
 
     @Test
-    fun `written text waits in the field and is sent whole with Send`() {
+    fun `written text waits in the field and is sent whole with the keyboard's Send key`() {
         show(Fixtures.remote())
         openTab(R.string.remote_mode_keys)
         typingField.performTextInput("hello")
         assertEquals(emptyList<InputEvent>(), sent)
 
-        compose.onAllNodesWithContentDescription(string(R.string.keys_send)).onFirst().performClick()
+        typingField.performImeAction()
         compose.settle()
+        assertEquals(listOf<InputEvent>(InputEvent.TypedEdit(0, "hello")), sent)
+    }
+
+    @Test
+    fun `the Send button is there once there is something to send, and sends it`() {
+        show(Fixtures.remote())
+        openTab(R.string.remote_mode_keys)
+        compose.onAllNodesWithContentDescription(string(R.string.keys_send)).assertCountEquals(0)
+        typingField.performTextInput("hello")
+        compose.settle()
+        compose.onAllNodesWithContentDescription(string(R.string.keys_send)).onFirst().activate()
         assertEquals(listOf<InputEvent>(InputEvent.TypedEdit(0, "hello")), sent)
     }
 
