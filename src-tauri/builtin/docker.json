@@ -1,0 +1,18 @@
+{
+  "id": "docker",
+  "name": "Docker",
+  "developer": "Terminal AR",
+  "version": "1.0.0",
+  "description": "عرض الحاويات والصور (يتطلب تثبيت Docker).",
+  "platforms": ["windows"],
+  "kind": "command",
+  "engine": "shell",
+  "sdkVersion": "1",
+  "permissions": ["process.run"],
+  "actions": [
+    { "id": "version", "title": "إصدار Docker", "description": "يتحقق من تثبيت Docker.", "shell": "any", "steps": ["docker --version"] },
+    { "id": "ps", "title": "الحاويات العاملة", "description": "الحاويات التي تعمل الآن.", "shell": "any", "steps": ["docker ps"] },
+    { "id": "ps-all", "title": "كل الحاويات", "description": "العاملة والمتوقفة.", "shell": "any", "steps": ["docker ps -a"] },
+    { "id": "images", "title": "الصور", "description": "الصور المحمّلة محلياً.", "shell": "any", "steps": ["docker images"] }
+  ]
+}

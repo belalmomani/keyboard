@@ -1,0 +1,18 @@
+{
+  "id": "sys",
+  "name": "معلومات النظام",
+  "developer": "Terminal AR",
+  "version": "1.0.0",
+  "description": "معلومات الجهاز والعمليات والأقراص.",
+  "platforms": ["windows"],
+  "kind": "command",
+  "engine": "shell",
+  "sdkVersion": "1",
+  "permissions": ["process.run", "system.read"],
+  "actions": [
+    { "id": "os", "title": "إصدار ويندوز", "description": "الاسم والإصدار والمعمارية وآخر إقلاع.", "shell": "powershell", "steps": ["Get-CimInstance Win32_OperatingSystem | Select-Object Caption,Version,OSArchitecture,LastBootUpTime | Format-List"] },
+    { "id": "who", "title": "الجهاز والمستخدم", "description": "اسم الجهاز والمستخدم الحالي.", "shell": "any", "steps": ["hostname", "whoami"] },
+    { "id": "top", "title": "أكثر العمليات استهلاكاً للمعالج", "description": "أعلى 15 عملية.", "shell": "powershell", "steps": ["Get-Process | Sort-Object CPU -Descending | Select-Object -First 15 Name,Id,CPU,WS | Format-Table -AutoSize"] },
+    { "id": "disks", "title": "مساحة الأقراص", "description": "المستخدم والمتاح لكل قرص.", "shell": "powershell", "steps": ["Get-PSDrive -PSProvider FileSystem | Format-Table Name,Used,Free,Root -AutoSize"] }
+  ]
+}

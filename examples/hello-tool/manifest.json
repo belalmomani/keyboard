@@ -1,0 +1,29 @@
+{
+  "id": "hello",
+  "name": "أداة تجريبية",
+  "developer": "Terminal AR Examples",
+  "version": "1.0.0",
+  "description": "حزمة مثال لاختبار تثبيت .tarpkg: تعرض تحية واسم المستخدم والتاريخ.",
+  "platforms": ["windows"],
+  "kind": "command",
+  "engine": "shell",
+  "sdkVersion": "1",
+  "minAppVersion": "0.3.0",
+  "permissions": ["process.run", "system.read"],
+  "actions": [
+    {
+      "id": "greet",
+      "title": "تحية وعرض المستخدم",
+      "description": "يطبع رسالة ثم اسم المستخدم والتاريخ.",
+      "shell": "powershell",
+      "steps": ["Write-Output 'Hello from hello.tarpkg'", "whoami", "Get-Date"]
+    },
+    {
+      "id": "where",
+      "title": "المسار الحالي",
+      "description": "يعرض المجلد الذي تعمل فيه الجلسة.",
+      "shell": "powershell",
+      "steps": ["(Get-Location).Path"]
+    }
+  ]
+}

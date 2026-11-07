@@ -1,0 +1,95 @@
+name: Windows Build
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      TAR_BUILD: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Read version
+        shell: pwsh
+        run: |
+          $m = Select-String -Path src-tauri/Cargo.toml -Pattern '^version = "(.*)"' | Select-Object -First 1
+          $v = $m.Matches[0].Groups[1].Value
+          "VERSION=$v" >> $env:GITHUB_ENV
+          "### Terminal AR $v — Build ${{ github.run_number }}" >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Tool versions
+        shell: pwsh
+        run: |
+          node --version
+          npm --version
+          rustc --version
+          cargo --version
+
+      - name: Install frontend dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck (TypeScript)
+        run: npx tsc --noEmit
+
+      # مطلوب قبل cargo test: ماكرو Tauri يتحقق من وجود مجلد dist وقت الترجمة
+      - name: Build frontend
+        run: npm run build
+
+      - name: Rust tests (real ConPTY sessions)
+        id: tests
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          cargo test --manifest-path src-tauri/Cargo.toml -- --nocapture --test-threads=1 *> test-results.txt
+          $code = $LASTEXITCODE
+          Get-Content test-results.txt
+          "#### Rust test results" >> $env:GITHUB_STEP_SUMMARY
+          '```' >> $env:GITHUB_STEP_SUMMARY
+          Get-Content test-results.txt -Tail 40 >> $env:GITHUB_STEP_SUMMARY
+          '```' >> $env:GITHUB_STEP_SUMMARY
+          exit $code
+
+      - name: Build installer
+        run: npm run tauri -- build
+
+      - name: Collect files
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force out | Out-Null
+          Copy-Item "src-tauri/target/release/bundle/nsis/*.exe" out/ -ErrorAction SilentlyContinue
+          Copy-Item "src-tauri/target/release/terminal-ar.exe" "out/terminal-ar-portable.exe" -ErrorAction SilentlyContinue
+          Copy-Item test-results.txt out/ -ErrorAction SilentlyContinue
+          Copy-Item src-tauri/Cargo.lock out/ -ErrorAction SilentlyContinue
+          Copy-Item package-lock.json out/ -ErrorAction SilentlyContinue
+          Get-ChildItem out | Format-Table Name, Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: terminal-ar-${{ env.VERSION }}-build-${{ github.run_number }}-windows
+          path: out/*
+          if-no-files-found: error
+
+      - name: Fail if tests failed
+        if: steps.tests.outcome == 'failure'
+        run: |
+          Write-Error "Rust tests failed - see test-results.txt in the artifact"
+          exit 1
+        shell: pwsh

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Terminal AR</title>
+  </head>
+  <body data-mode="easy">
+    <div id="app">
+      <header class="topbar">
+        <button id="sidebar-toggle" class="btn icon" title="إظهار/إخفاء قائمة الأوامر">☰</button>
+        <div class="brand"><span class="logo">&rsaquo;_</span><span>Terminal AR</span></div>
+        <div class="tabs" id="tabs"></div>
+        <div class="modes" role="group" aria-label="وضع الاستخدام">
+          <button class="mode-btn" data-mode-btn="easy" title="واجهة بالأزرار والشرح">سهل</button>
+          <button class="mode-btn" data-mode-btn="smart" title="مفضلة واقتراحات حسب استخدامك">ذكي</button>
+          <button class="mode-btn" data-mode-btn="pro" title="الطرفية أولاً">احترافي</button>
+        </div>
+        <button id="studio-toggle" class="btn" title="استوديو تطوير الأدوات">الاستوديو</button>
+        <button id="toolbar-toggle" class="btn" title="شريط الأدوات المنزلق">الأدوات</button>
+        <div class="actions">
+          <button id="new-ps" class="btn primary" title="جلسة PowerShell جديدة">+ PowerShell</button>
+          <button id="new-cmd" class="btn" title="جلسة CMD جديدة">+ CMD</button>
+        </div>
+      </header>
+
+      <div class="body">
+        <aside id="sidebar"></aside>
+        <div class="work">
+          <div class="runbar">
+            <input id="run-input" list="run-list" dir="ltr" autocomplete="off" spellcheck="false" placeholder="Run net   —   اكتب Run ثم معرّف الأداة" />
+            <datalist id="run-list"></datalist>
+            <button id="run-go" class="btn small primary" title="تشغيل الأداة">تشغيل</button>
+          </div>
+          <main id="stage">
+            <div id="empty" class="empty">
+              <div class="empty-title">لا توجد جلسة مفتوحة</div>
+              <div class="empty-sub">ابدأ جلسة PowerShell أو CMD حقيقية من الأزرار بالأعلى.</div>
+            </div>
+            <aside id="toolbar" aria-hidden="true"></aside>
+          </main>
+        </div>
+      </div>
+
+      <footer class="statusbar">
+        <span id="status">جاهز</span>
+        <span class="spacer"></span>
+        <button id="kill" class="btn small danger" disabled title="إيقاف العملية الجارية في الجلسة الحالية">إيقاف العملية</button>
+        <span id="info" class="info"></span>
+      </footer>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

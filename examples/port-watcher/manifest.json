@@ -1,0 +1,37 @@
+{
+  "id": "port-watcher",
+  "name": "مراقب المنافذ",
+  "developer": "Terminal AR Examples",
+  "version": "1.0.0",
+  "description": "يكشف المنافذ المفتوحة والبرامج المرتبطة بها والاتصالات النشطة على Windows.",
+  "platforms": ["windows"],
+  "kind": "command",
+  "engine": "shell",
+  "sdkVersion": "1",
+  "minAppVersion": "0.3.0",
+  "permissions": ["process.run", "system.read"],
+  "actions": [
+    {
+      "id": "full-scan",
+      "title": "افحص اتصالات الكمبيوتر",
+      "description": "يفحص المنافذ والبرامج والاتصالات ويعرض تقريراً شاملاً.",
+      "shell": "powershell",
+      "steps": [
+        "$ErrorActionPreference = 'SilentlyContinue'",
+        "$connections = Get-NetTCPConnection",
+        "Write-Output '====== تقرير مراقبة المنافذ ======'",
+        "Write-Output ('وقت الفحص: ' + (Get-Date))",
+        "Write-Output '--- المنافذ التي تستمع للاتصالات ---'",
+        "$listeners = $connections | Where-Object {$_.State -eq 'Listen'}",
+        "foreach ($item in $listeners) { $proc = Get-Process -Id $item.OwningProcess; Write-Output ('PORT: ' + $item.LocalPort + ' | ADDRESS: ' + $item.LocalAddress + ' | PROCESS: ' + $proc.ProcessName + ' | PID: ' + $item.OwningProcess) }",
+        "Write-Output '--- الاتصالات الخارجية النشطة ---'",
+        "$active = $connections | Where-Object {$_.State -eq 'Established'}",
+        "foreach ($item in $active) { $proc = Get-Process -Id $item.OwningProcess; Write-Output ('LOCAL: ' + $item.LocalAddress + ':' + $item.LocalPort + ' | REMOTE: ' + $item.RemoteAddress + ':' + $item.RemotePort + ' | PROCESS: ' + $proc.ProcessName) }",
+        "Write-Output '--- إحصائيات ---'",
+        "Write-Output ('عدد منافذ الاستماع: ' + $listeners.Count)",
+        "Write-Output ('عدد الاتصالات النشطة: ' + $active.Count)",
+        "Write-Output '====== انتهى الفحص ======'"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "id": "net",
+  "name": "تشخيص الشبكة",
+  "developer": "Terminal AR",
+  "version": "1.0.0",
+  "description": "فحص الاتصال وعناوين الشبكة وDNS والمنافذ بأوامر Windows الأصلية.",
+  "platforms": ["windows"],
+  "kind": "command",
+  "engine": "shell",
+  "sdkVersion": "1",
+  "permissions": ["process.run", "system.read", "network"],
+  "actions": [
+    { "id": "info", "title": "عناوين الشبكة", "description": "إعدادات البطاقات وعناوين IP وDNS.", "shell": "any", "steps": ["ipconfig /all"] },
+    { "id": "ping", "title": "اختبار الاتصال بالإنترنت", "description": "4 حزم إلى 8.8.8.8.", "shell": "any", "steps": ["ping -n 4 8.8.8.8"] },
+    { "id": "dns", "title": "فحص DNS", "description": "تحويل اسم موقع إلى عنوان.", "shell": "any", "steps": ["nslookup example.com"] },
+    { "id": "trace", "title": "تتبع المسار", "description": "المسار حتى 8.8.8.8.", "shell": "any", "steps": ["tracert -d 8.8.8.8"] },
+    { "id": "ports", "title": "اتصالات الشبكة والمنافذ", "description": "الاتصالات الحالية مع معرّف العملية.", "shell": "any", "steps": ["netstat -ano"] }
+  ]
+}

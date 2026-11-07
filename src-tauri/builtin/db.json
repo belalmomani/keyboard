@@ -1,0 +1,15 @@
+{
+  "id": "db",
+  "name": "قواعد البيانات",
+  "developer": "Terminal AR",
+  "version": "1.0.0",
+  "description": "فحص عملاء قواعد البيانات المثبتة (SQLite وMySQL وPostgreSQL).",
+  "platforms": ["windows"],
+  "kind": "command",
+  "engine": "shell",
+  "sdkVersion": "1",
+  "permissions": ["process.run"],
+  "actions": [
+    { "id": "check", "title": "فحص العملاء المثبتة", "description": "يعرض إصدار sqlite3 وmysql وpsql إن وُجدت.", "shell": "any", "steps": ["sqlite3 --version", "mysql --version", "psql --version"] }
+  ]
+}

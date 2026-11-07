@@ -1,0 +1,59 @@
+{
+  "id": "my-drivers",
+  "name": "فحص التعريفات",
+  "developer": "Terminal AR Examples",
+  "version": "1.0.0",
+  "description": "يعرض الأجهزة التي فيها مشكلة تعريف، وأقدم التعريفات المثبتة، ويفتح Windows Update أو موقع DriverPack. للقراءة فقط: لا يثبّت ولا يحدّث شيئاً بنفسه.",
+  "platforms": [
+    "windows"
+  ],
+  "kind": "command",
+  "engine": "shell",
+  "sdkVersion": "1",
+  "minAppVersion": "0.5.0",
+  "permissions": [
+    "process.run",
+    "system.read"
+  ],
+  "actions": [
+    {
+      "id": "problems",
+      "title": "أجهزة بها مشكلة أو تعريف ناقص",
+      "description": "يعرض الأجهزة التي يبلّغ ويندوز عن مشكلة فيها، مع رمز المشكلة.",
+      "shell": "powershell",
+      "steps": [
+        "Write-Output '--- الأجهزة التي فيها مشكلة (إن كانت القائمة فارغة فلا توجد مشاكل مسجّلة) ---'",
+        "Get-CimInstance Win32_PnPEntity | Where-Object { $_.ConfigManagerErrorCode -ne 0 } | Select-Object Name,PNPClass,ConfigManagerErrorCode,DeviceID | Format-List",
+        "Write-Output 'معنى الرمز: 28 = لا يوجد تعريف مثبت | 22 = الجهاز معطّل | 10 = لا يستطيع البدء | 43 = توقّف بسبب مشكلة | 31 = لا يعمل بشكل صحيح'"
+      ]
+    },
+    {
+      "id": "oldest",
+      "title": "أقدم التعريفات المثبتة",
+      "description": "يعرض أقدم 30 تعريفاً حسب التاريخ. القِدَم مؤشر فقط وليس دليلاً على الحاجة للتحديث.",
+      "shell": "powershell",
+      "steps": [
+        "Get-CimInstance Win32_PnPSignedDriver | Where-Object { $_.DeviceName -and $_.DriverDate } | Sort-Object DriverDate | Select-Object -First 30 DeviceName,DriverVersion,DriverDate,Manufacturer | Format-Table -AutoSize"
+      ]
+    },
+    {
+      "id": "windows-update",
+      "title": "فتح Windows Update للبحث عن تعريفات",
+      "description": "يفتح صفحة Windows Update في الإعدادات لتبحث وتثبّت منها بنفسك.",
+      "shell": "powershell",
+      "steps": [
+        "Start-Process 'ms-settings:windowsupdate'"
+      ]
+    },
+    {
+      "id": "driverpack",
+      "title": "فتح موقع DriverPack في المتصفح",
+      "description": "يفتح الموقع في متصفحك فقط. التنزيل والتثبيت يتمان بيدك ومن مسؤوليتك.",
+      "shell": "powershell",
+      "confirm": true,
+      "steps": [
+        "Start-Process 'https://driverpack.io/ar/'"
+      ]
+    }
+  ]
+}

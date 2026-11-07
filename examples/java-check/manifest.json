@@ -1,0 +1,35 @@
+{
+  "id": "java-check",
+  "name": "فحص جافا",
+  "developer": "Terminal AR Examples",
+  "version": "1.0.0",
+  "description": "يتحقق هل جافا (JRE) ومترجمها (JDK) مثبتان، ويعرض الإصدار ومكان التثبيت.",
+  "platforms": ["windows"],
+  "kind": "command",
+  "engine": "shell",
+  "sdkVersion": "1",
+  "minAppVersion": "0.3.0",
+  "permissions": ["process.run"],
+  "actions": [
+    {
+      "id": "check",
+      "title": "هل جافا مثبت؟",
+      "description": "يعرض إصدار جافا ومسارها، أو يخبرك أنه غير مثبت.",
+      "shell": "powershell",
+      "steps": [
+        "Write-Output '--- فحص جافا ---'",
+        "if (Get-Command java -ErrorAction SilentlyContinue) { Write-Output 'جافا مثبت:'; java -version; Get-Command java | Select-Object -ExpandProperty Source } else { Write-Output 'جافا غير مثبت على هذا الجهاز' }",
+        "Write-Output ('JAVA_HOME = ' + $env:JAVA_HOME)"
+      ]
+    },
+    {
+      "id": "jdk",
+      "title": "هل مترجم جافا (JDK) مثبت؟",
+      "description": "يتحقق من وجود javac، وهو ما يلزم لتطوير برامج جافا.",
+      "shell": "powershell",
+      "steps": [
+        "if (Get-Command javac -ErrorAction SilentlyContinue) { Write-Output 'JDK مثبت:'; javac -version } else { Write-Output 'JDK غير مثبت (قد يكون JRE فقط)' }"
+      ]
+    }
+  ]
+}
