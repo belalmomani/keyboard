@@ -17,4 +17,9 @@
     <string name="screen_fullscreen">ملء الشاشة</string>
     <string name="screen_exit_fullscreen">الخروج من ملء الشاشة</string>
     <string name="screen_rotate">تدوير الشاشة</string>
+    <string name="screen_control_on">تحكم كامل</string>
+    <string name="screen_control_off">إيقاف التحكم</string>
+    <string name="screen_control_keyboard">لوحة المفاتيح</string>
+    <string name="screen_control_backspace">حذف</string>
+    <string name="screen_control_enter">إدخال</string>
 </resources>

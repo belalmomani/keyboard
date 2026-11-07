@@ -56,6 +56,27 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.automirrored.rounded.Backspace
+import androidx.compose.material.icons.automirrored.rounded.KeyboardReturn
+import androidx.compose.material.icons.rounded.Keyboard
+import androidx.compose.material.icons.rounded.Mouse
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerInputScope
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.dp
+import com.omsingh.beckon.core.input.InputEvent
+import com.omsingh.beckon.core.input.KeyboardSession
 import com.omsingh.beckon.R
 import com.omsingh.beckon.core.screen.ScreenPicture
 import com.omsingh.beckon.core.screen.ScreenViewState
@@ -66,10 +87,16 @@ import com.omsingh.beckon.ui.theme.Spacing
  * front, and stops (telling the PC) the moment either stops being true.
  */
 @Composable
-fun ScreenTab(controller: ScreenController?, connected: Boolean, modifier: Modifier = Modifier) {
+fun ScreenTab(
+    controller: ScreenController?,
+    connected: Boolean,
+    modifier: Modifier = Modifier,
+    actions: RemoteActions = RemoteActions.None,
+    keyboard: KeyboardSession? = null,
+) {
     if (controller == null) return
     val state by controller.state.collectAsState()
-    var fullscreen by rememberSaveable { mutableStateOf(false) }
+    val fullscreen by controller.fullscreen.collectAsState()
 
     // Keyed on `connected`: a reconnect resets the client, so the request must be sent again.
     DisposableEffect(controller, connected) {
@@ -78,7 +105,7 @@ fun ScreenTab(controller: ScreenController?, connected: Boolean, modifier: Modif
     }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { controller.stop() }
     LifecycleEventEffect(Lifecycle.Event.ON_START) { controller.start() }
-    if (fullscreen) FullscreenPicture(state, controller, onClose = { fullscreen = false })
+    if (fullscreen) FullscreenPicture(state, controller, actions, keyboard, onClose = { controller.fullscreen.value = false })
 
     Column(
         modifier = modifier
@@ -94,7 +121,10 @@ fun ScreenTab(controller: ScreenController?, connected: Boolean, modifier: Modif
             contentAlignment = Alignment.Center,
         ) {
             when (val current = state) {
-                is ScreenViewState.Showing -> PictureView(current.picture, onFullscreen = { fullscreen = true })
+                is ScreenViewState.Showing -> PictureView(
+                    current.picture, controller, actions, keyboard,
+                    onFullscreen = { controller.fullscreen.value = true },
+                )
                 ScreenViewState.Off, ScreenViewState.Waiting -> Waiting()
                 is ScreenViewState.Unavailable -> Unavailable(current.reason, onRetry = controller::start)
             }
@@ -111,19 +141,55 @@ fun ScreenTab(controller: ScreenController?, connected: Boolean, modifier: Modif
 }
 
 @Composable
-private fun PictureView(picture: ScreenPicture, onFullscreen: () -> Unit) {
+private fun PictureView(
+    picture: ScreenPicture,
+    controller: ScreenController,
+    actions: RemoteActions,
+    keyboard: KeyboardSession?,
+    onFullscreen: () -> Unit,
+) {
     val bitmap = remember(picture) {
         Bitmap.createBitmap(picture.pixels, picture.width, picture.height, Bitmap.Config.ARGB_8888).asImageBitmap()
     }
+    val control by controller.control.collectAsState()
+    var typing by remember { mutableStateOf(false) }
+    val send by rememberUpdatedState(actions::send)
     Box(Modifier.fillMaxSize()) {
         Image(
             bitmap = bitmap,
             contentDescription = stringResource(R.string.screen_picture_description),
             contentScale = ContentScale.Fit,
-            modifier = Modifier.fillMaxSize().clickable(onClick = onFullscreen),
+            modifier = Modifier
+                .fillMaxSize()
+                .then(
+                    if (control) Modifier.pointerInput(Unit) { controlGestures { send(it) } }
+                    else Modifier.clickable(onClick = onFullscreen),
+                ),
         )
-        FilledTonalIconButton(onClick = onFullscreen, modifier = Modifier.align(Alignment.TopEnd).padding(Spacing.sm)) {
-            Icon(Icons.Rounded.Fullscreen, contentDescription = stringResource(R.string.screen_fullscreen))
+        Row(
+            Modifier.align(Alignment.TopEnd).padding(Spacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            if (keyboard != null) {
+                FilledTonalIconButton(onClick = { controller.control.value = !control; if (control) typing = false }) {
+                    Icon(
+                        Icons.Rounded.Mouse,
+                        contentDescription = stringResource(if (control) R.string.screen_control_off else R.string.screen_control_on),
+                        tint = if (control) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+                    )
+                }
+                if (control) {
+                    FilledTonalIconButton(onClick = { typing = !typing }) {
+                        Icon(Icons.Rounded.Keyboard, contentDescription = stringResource(R.string.screen_control_keyboard))
+                    }
+                }
+            }
+            FilledTonalIconButton(onClick = onFullscreen) {
+                Icon(Icons.Rounded.Fullscreen, contentDescription = stringResource(R.string.screen_fullscreen))
+            }
+        }
+        if (control && typing && keyboard != null) {
+            ControlKeyboard(keyboard, Modifier.align(Alignment.BottomCenter))
         }
     }
 }
@@ -133,10 +199,19 @@ private fun PictureView(picture: ScreenPicture, onFullscreen: () -> Unit) {
  * pinch to zoom, drag to move and a double tap to go back to the whole picture. View only, as ever.
  */
 @Composable
-private fun FullscreenPicture(state: ScreenViewState, controller: ScreenController, onClose: () -> Unit) {
+private fun FullscreenPicture(
+    state: ScreenViewState,
+    controller: ScreenController,
+    actions: RemoteActions,
+    keyboard: KeyboardSession?,
+    onClose: () -> Unit,
+) {
     val context = LocalContext.current
     val activity = context as? Activity
-    var landscape by rememberSaveable { mutableStateOf(false) }
+    val landscape by controller.landscape.collectAsState()
+    val control by controller.control.collectAsState()
+    var typing by remember { mutableStateOf(false) }
+    val send by rememberUpdatedState(actions::send)
 
     // Sharper pictures while this is open; asked again when a new view starts (a reconnect forgets the choice).
     LaunchedEffect(state is ScreenViewState.Showing || state == ScreenViewState.Waiting) { controller.setWide(true) }
@@ -169,25 +244,33 @@ private fun FullscreenPicture(state: ScreenViewState, controller: ScreenControll
             Modifier
                 .fillMaxSize()
                 .background(Color.Black)
-                .pointerInput(Unit) {
-                    detectTransformGestures { _, pan, zoom, _ ->
-                        scale = (scale * zoom).coerceIn(1f, 6f)
-                        if (scale == 1f) {
-                            offsetX = 0f
-                            offsetY = 0f
-                        } else {
-                            offsetX += pan.x
-                            offsetY += pan.y
-                        }
-                    }
-                }
-                .pointerInput(Unit) {
-                    detectTapGestures(onDoubleTap = {
-                        scale = if (scale > 1f) 1f else 2.5f
-                        offsetX = 0f
-                        offsetY = 0f
-                    })
-                },
+                .then(
+                    if (control) {
+                        // Full control: the finger is a pad laid over the picture.
+                        Modifier.pointerInput(Unit) { controlGestures { send(it) } }
+                    } else {
+                        Modifier
+                            .pointerInput(Unit) {
+                                detectTransformGestures { _, pan, zoom, _ ->
+                                    scale = (scale * zoom).coerceIn(1f, 6f)
+                                    if (scale == 1f) {
+                                        offsetX = 0f
+                                        offsetY = 0f
+                                    } else {
+                                        offsetX += pan.x
+                                        offsetY += pan.y
+                                    }
+                                }
+                            }
+                            .pointerInput(Unit) {
+                                detectTapGestures(onDoubleTap = {
+                                    scale = if (scale > 1f) 1f else 2.5f
+                                    offsetX = 0f
+                                    offsetY = 0f
+                                })
+                            }
+                    },
+                ),
             contentAlignment = Alignment.Center,
         ) {
             when (state) {
@@ -211,12 +294,29 @@ private fun FullscreenPicture(state: ScreenViewState, controller: ScreenControll
                 Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(Spacing.sm),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                FilledTonalIconButton(onClick = { landscape = !landscape }) {
+                if (keyboard != null) {
+                    FilledTonalIconButton(onClick = { controller.control.value = !control; if (control) typing = false }) {
+                        Icon(
+                            Icons.Rounded.Mouse,
+                            contentDescription = stringResource(if (control) R.string.screen_control_off else R.string.screen_control_on),
+                            tint = if (control) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+                        )
+                    }
+                    if (control) {
+                        FilledTonalIconButton(onClick = { typing = !typing }) {
+                            Icon(Icons.Rounded.Keyboard, contentDescription = stringResource(R.string.screen_control_keyboard))
+                        }
+                    }
+                }
+                FilledTonalIconButton(onClick = { controller.landscape.value = !landscape }) {
                     Icon(Icons.Rounded.ScreenRotation, contentDescription = stringResource(R.string.screen_rotate))
                 }
                 FilledTonalIconButton(onClick = onClose) {
                     Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.screen_exit_fullscreen))
                 }
+            }
+            if (control && typing && keyboard != null) {
+                ControlKeyboard(keyboard, Modifier.align(Alignment.BottomCenter))
             }
         }
     }
@@ -266,5 +366,75 @@ private fun Unavailable(reason: ScreenViewState.Reason, onRetry: () -> Unit) {
             textAlign = TextAlign.Center,
         )
         Button(onClick = onRetry) { Text(stringResource(R.string.screen_try_again)) }
+    }
+}
+
+/** Types into the PC from the full screen picture: the written text goes whole, with Enter and Backspace beside it. */
+@Composable
+private fun ControlKeyboard(keyboard: KeyboardSession, modifier: Modifier = Modifier) {
+    var text by remember { mutableStateOf("") }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    Row(
+        modifier
+            .fillMaxWidth()
+            .imePadding()
+            .background(Color.Black.copy(alpha = 0.75f))
+            .padding(Spacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it },
+            modifier = Modifier.weight(1f).focusRequester(focus),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+            keyboardActions = KeyboardActions(onSend = {
+                if (text.isNotEmpty()) keyboard.edit(0, text)
+                text = ""
+            }),
+        )
+        FilledTonalIconButton(onClick = { keyboard.backspace(1) }) {
+            Icon(Icons.AutoMirrored.Rounded.Backspace, contentDescription = stringResource(R.string.screen_control_backspace))
+        }
+        FilledTonalIconButton(onClick = { keyboard.tapKey(0x28) }) {
+            Icon(Icons.AutoMirrored.Rounded.KeyboardReturn, contentDescription = stringResource(R.string.screen_control_enter))
+        }
+    }
+}
+
+/**
+ * One finger moves the pointer, a tap clicks, a long press right-clicks, two fingers scroll. The pointer
+ * itself is the one in the picture.
+ */
+private suspend fun PointerInputScope.controlGestures(send: (InputEvent) -> Unit) {
+    val slop = 8.dp.toPx()
+    val notch = 36.dp.toPx()
+    val speed = 1.8f
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false)
+        var travelled = 0f
+        var scrolled = false
+        var carry = 0f
+        do {
+            val event = awaitPointerEvent()
+            val down2 = event.changes.filter { it.pressed }
+            if (down2.size >= 2) {
+                scrolled = true
+                carry += down2.map { it.positionChange().y }.average().toFloat()
+                while (carry >= notch) { send(InputEvent.Scroll(1f)); carry -= notch }
+                while (carry <= -notch) { send(InputEvent.Scroll(-1f)); carry += notch }
+            } else if (!scrolled && down2.size == 1) {
+                val d = down2[0].positionChange()
+                travelled += kotlin.math.abs(d.x) + kotlin.math.abs(d.y)
+                if (d != Offset.Zero) send(InputEvent.MouseMove(d.x * speed / density, d.y * speed / density))
+            }
+            event.changes.forEach { it.consume() }
+        } while (event.changes.any { it.pressed })
+        val held = android.os.SystemClock.uptimeMillis() - down.uptimeMillis
+        if (!scrolled && travelled < slop) {
+            send(if (held >= 500) InputEvent.RightClick else InputEvent.Click)
+        }
     }
 }

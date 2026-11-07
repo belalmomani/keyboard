@@ -17,4 +17,9 @@
     <string name="screen_fullscreen">Full screen</string>
     <string name="screen_exit_fullscreen">Leave full screen</string>
     <string name="screen_rotate">Turn sideways</string>
+    <string name="screen_control_on">Take control</string>
+    <string name="screen_control_off">Stop controlling</string>
+    <string name="screen_control_keyboard">Keyboard</string>
+    <string name="screen_control_backspace">Backspace</string>
+    <string name="screen_control_enter">Enter</string>
 </resources>

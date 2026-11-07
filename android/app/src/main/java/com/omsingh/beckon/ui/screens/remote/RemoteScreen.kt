@@ -339,7 +339,7 @@ private fun RemoteContent(
                         RemoteMode.QUICK -> QuickTab(quick)
                         RemoteMode.BOARDS -> InterfacesTab(state, actions, keyboard, haptics, quick, library, interfaces)
                         RemoteMode.LIBRARY -> LibraryTab(library, onCopyToPhone = { library?.copyToPhone(it) })
-                        RemoteMode.SCREEN -> ScreenTab(screen, connected = state.connection is ConnectionState.Connected)
+                        RemoteMode.SCREEN -> ScreenTab(screen, connected = state.connection is ConnectionState.Connected, actions = actions, keyboard = keyboard)
                     }
                 }
             }
