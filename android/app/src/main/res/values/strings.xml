@@ -128,7 +128,7 @@
     <string name="add_port_invalid">Port must be between 1 and 65535</string>
     <string name="add_bt_intro">Bluetooth works without Wi‑Fi. This phone appears to a PC or a TV as a keyboard and mouse.</string>
     <string name="add_bt_step_visible">Open Bluetooth settings on this phone and leave them open, so the phone is visible.</string>
-    <string name="add_bt_step_pair">On the PC or TV, add a Bluetooth device and choose this phone. On an Android TV: Settings, Remote & accessories, Add accessory.</string>
+    <string name="add_bt_step_pair">On the PC or TV, add a Bluetooth device and choose this phone. On an Android TV: Settings, Remote &amp; accessories, Add accessory.</string>
     <string name="add_bt_step_pick">Come back here and pick the PC or TV.</string>
     <string name="add_bt_open_settings">Open Bluetooth settings</string>
     <string name="add_bt_none">No paired Bluetooth devices yet.</string>
