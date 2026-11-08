@@ -255,8 +255,18 @@ class ConnectionManager internal constructor(
     /** Stops the pictures, and tells the PC. */
     @Synchronized
     fun stopScreenView() {
+        // While the PC's screen is being passed on to a TV, leaving the Screen tab or the app must not end it.
+        if (screenPinned) return
         wideOwners.clear()
         screenClient.stop()
+    }
+
+    @Volatile private var screenPinned = false
+
+    /** While pinned, [stopScreenView] does nothing: the relay to a linked device keeps the pictures coming. */
+    @Synchronized
+    fun pinScreenView(pinned: Boolean) {
+        screenPinned = pinned
     }
 
     private val wideOwners = mutableSetOf<String>()

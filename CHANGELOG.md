@@ -4,6 +4,12 @@ All notable changes are listed here, newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+
+- **Showing the PC's screen on a TV no longer ends when the phone is put in the background.** Leaving the Screen tab or the app used to stop the pictures; while they are passed on to a TV they now keep coming. While a link is open the phone also keeps Wi-Fi and the processor awake, so the link does not drop a while after the screen turns off.
+- **The link with another phone no longer drops when you leave the app.** While a link is open (or waiting for a phone) a small notification keeps it alive, with a Disconnect button. Without it Android put the app to sleep a few seconds after it was left.
+- **Letters lost or swapped when typing fast.** Typing on the phone's keyboard was sent as loose packets, and Wi-Fi sometimes drops or reorders those, so a letter could be missing on the PC (a pasted text was fine because it was sent whole). Each step of typing is now numbered, the PC applies the steps once each and in order and confirms them, and the phone sends again what is not confirmed. Needs the new PC program; with an older one, typing works as before.
+
 ### Changed
 
 - **Files sent to a TV can be opened on it.** The TV lists what it received (newest first); OK on a picture shows it full screen (Back returns), and any other file opens with an app on the TV that can show it.
@@ -18,11 +24,6 @@ All notable changes are listed here, newest first. The format follows [Keep a Ch
 - **Typing is sent after you write it.** In the Keys tab the text stays in the field until you press Send (the button or the keyboard's Send key), so the PC gets whole words and sentences, not fragments. Copy, paste and the shortcuts still act at once. Your unsent text is kept if you visit another tab. "Send every key at once" is still in the field's menu for those who want it.
 - **A cleaner Remote screen.** The PC's name and link quality sit in one card at the top, the tabs are one rounded bar, and the shortcuts are cards with an icon, a name and the keys they press.
 - **No menu inside a menu in Quick control.** "Customize" now opens right in the tab, with one row of chips (arrange, add a command, make a group, my commands) instead of dialogs on top of dialogs, and the key picker for your own shortcuts is a row of chips instead of a drop-down. Dangerous commands still ask first.
-
-### Fixed
-
-- **The link with another phone no longer drops when you leave the app.** While a link is open (or waiting for a phone) a small notification keeps it alive, with a Disconnect button. Without it Android put the app to sleep a few seconds after it was left.
-- **Letters lost or swapped when typing fast.** Typing on the phone's keyboard was sent as loose packets, and Wi-Fi sometimes drops or reorders those, so a letter could be missing on the PC (a pasted text was fine because it was sent whole). Each step of typing is now numbered, the PC applies the steps once each and in order and confirms them, and the phone sends again what is not confirmed. Needs the new PC program; with an older one, typing works as before.
 
 ### Added
 

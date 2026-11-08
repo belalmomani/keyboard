@@ -7,7 +7,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.net.wifi.WifiManager
 import android.os.IBinder
+import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import com.omsingh.beckon.MainActivity
 import com.omsingh.beckon.R
@@ -20,7 +22,35 @@ import com.omsingh.beckon.service.BeckonConnectionService
  */
 class LinkKeepAliveService : Service() {
 
+    private var wifiLock: WifiManager.WifiLock? = null
+    private var cpuLock: PowerManager.WakeLock? = null
+
     override fun onBind(intent: Intent?): IBinder? = null
+
+    /** Wi-Fi and the processor stay awake while a link is open: without them they doze a while after the screen goes off. */
+    private fun holdLocks() {
+        try {
+            if (wifiLock == null) {
+                val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+                val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) WifiManager.WIFI_MODE_FULL_LOW_LATENCY else WifiManager.WIFI_MODE_FULL_HIGH_PERF
+                wifiLock = wifi?.createWifiLock(mode, "beckon:link")?.apply { setReferenceCounted(false); acquire() }
+            }
+            if (cpuLock == null) {
+                val power = getSystemService(Context.POWER_SERVICE) as? PowerManager
+                cpuLock = power?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "beckon:link")?.apply { setReferenceCounted(false); acquire() }
+            }
+        } catch (_: Exception) {
+            // A lock refused is not worth ending the link for.
+        }
+    }
+
+    override fun onDestroy() {
+        try { wifiLock?.takeIf { it.isHeld }?.release() } catch (_: Exception) {}
+        try { cpuLock?.takeIf { it.isHeld }?.release() } catch (_: Exception) {}
+        wifiLock = null
+        cpuLock = null
+        super.onDestroy()
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_DISCONNECT) {
@@ -39,6 +69,7 @@ class LinkKeepAliveService : Service() {
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
+        holdLocks()
         return START_NOT_STICKY
     }
 

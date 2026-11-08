@@ -50,6 +50,7 @@ class PcScreenRelay(
         }
         if (client.state.value !is ClientState.Connected) return
         _state.value = RelayState.Waiting
+        manager.pinScreenView(true)
         manager.startScreenView()
         // A TV is read from further away: the PC is asked for its sharper pictures (1280 wide), sent on as they are.
         manager.setScreenWide("relay", true)
@@ -88,6 +89,7 @@ class PcScreenRelay(
         job = null
         guard = null
         if (wasRunning) {
+            manager.pinScreenView(false)
             manager.stopScreenView()
             scope.launch(Dispatchers.IO) { client.screenEnded() }
         }
