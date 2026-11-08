@@ -255,7 +255,7 @@ private fun thumbnail(path: String): Bitmap? {
 }
 
 /** Opens a received file with whatever app on this phone can show it. */
-private fun open(context: Context, file: ReceivedFile) {
+internal fun open(context: Context, file: ReceivedFile) {
     try {
         val uri = FileProvider.getUriForFile(context, context.packageName + ".files", File(file.path))
         val type = context.contentResolver.getType(uri) ?: "*/*"

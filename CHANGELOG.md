@@ -6,6 +6,7 @@ All notable changes are listed here, newest first. The format follows [Keep a Ch
 
 ### Changed
 
+- **Files sent to a TV can be opened on it.** The TV lists what it received (newest first); OK on a picture shows it full screen (Back returns), and any other file opens with an app on the TV that can show it.
 - **A TV can be used with the keyboard and mouse.** The Bluetooth steps now say how to pair the phone with a TV (Android TV: Settings, Remote & accessories, Add accessory), then it moves the pointer and types there like it does on a PC.
 - **Touch to point.** While controlling the PC's screen, touching the picture puts the PC's pointer exactly there (and it follows the finger); a tap clicks, a long press right-clicks, two fingers scroll. A button switches to the finger-as-a-pad way. This adds a new message (`MouseTo`) to the protocol, so the phone and PC apps must be updated together; it works on Windows, where the screen can be shown, and does nothing elsewhere.
 - **Full screen survives turning the phone.** It used to close when the phone was turned, because turning rebuilds the screen; the choice is now kept.

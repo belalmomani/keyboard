@@ -20,6 +20,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import com.omsingh.beckon.core.phonelink.ReceivedFile
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -139,7 +143,11 @@ private fun TvPicture(viewModel: PhoneLinkViewModel, name: String) {
     val picture by host.screen.collectAsStateWithLifecycle()
     val files by host.received.collectAsStateWithLifecycle()
     val shown = picture
-    if (shown != null) {
+    var viewing by remember { mutableStateOf<ReceivedFile?>(null) }
+    val viewed = viewing
+    if (viewed != null && shown == null) {
+        TvFileViewer(viewed, onClose = { viewing = null })
+    } else if (shown != null) {
         val bitmap by produceState<Bitmap?>(null, shown.counter) {
             value = withContext(Dispatchers.Default) { BitmapFactory.decodeByteArray(shown.jpeg, 0, shown.jpeg.size) }
         }
@@ -157,7 +165,47 @@ private fun TvPicture(viewModel: PhoneLinkViewModel, name: String) {
             Text(stringResource(R.string.tv_waiting_screen), style = MaterialTheme.typography.titleLarge, color = Color.White.copy(alpha = 0.8f))
             if (files.isNotEmpty()) {
                 Text(stringResource(R.string.tv_files_received, files.size), style = MaterialTheme.typography.titleMedium, color = Color.White.copy(alpha = 0.8f))
+                TvFiles(files, onView = { viewing = it })
             }
         }
     }
+}
+
+/** The files that came from the phone, newest first: OK on one shows a picture full screen, or opens it with another app. */
+@Composable
+private fun TvFiles(files: List<ReceivedFile>, onView: (ReceivedFile) -> Unit) {
+    val context = LocalContext.current
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(files.firstOrNull()?.path) { runCatching { focus.requestFocus() } }
+    Column(Modifier.padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        files.take(6).forEachIndexed { index, file ->
+            Button(
+                onClick = { if (file.isImage) onView(file) else open(context, file) },
+                modifier = if (index == 0) Modifier.focusRequester(focus) else Modifier,
+            ) { Text(file.name, maxLines = 1) }
+        }
+    }
+}
+
+/** A received picture over the whole screen; Back returns to the list. */
+@Composable
+private fun TvFileViewer(file: ReceivedFile, onClose: () -> Unit) {
+    BackHandler(onBack = onClose)
+    val bitmap by produceState<Bitmap?>(null, file.path) {
+        value = withContext(Dispatchers.Default) { decodeForScreen(file.path) }
+    }
+    Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+        bitmap?.let {
+            Image(it.asImageBitmap(), contentDescription = file.name, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
+        }
+    }
+}
+
+/** A picture file, no bigger than a TV screen needs. */
+private fun decodeForScreen(path: String): Bitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(path, bounds)
+    var sample = 1
+    while (bounds.outWidth / sample > 2400 || bounds.outHeight / sample > 2400) sample *= 2
+    return BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inSampleSize = sample })
 }
