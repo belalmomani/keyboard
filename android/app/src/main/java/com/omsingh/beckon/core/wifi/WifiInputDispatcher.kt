@@ -227,6 +227,11 @@ class WifiInputDispatcher(
                 plain.putShort(event.dx.toInt().coerceIn(-32767, 32767).toShort())
                 plain.putShort(event.dy.toInt().coerceIn(-32767, 32767).toShort())
             }
+            is InputEvent.MouseTo -> {
+                plain.put(MSG_MOUSE_TO)
+                plain.putShort((event.x.coerceIn(0f, 1f) * 65535f).toInt().toShort())
+                plain.putShort((event.y.coerceIn(0f, 1f) * 65535f).toInt().toShort())
+            }
             is InputEvent.MouseButton -> emitButton(event.button, event.pressed)
             is InputEvent.Scroll -> {
                 plain.put(MSG_SCROLL)
@@ -717,6 +722,7 @@ class WifiInputDispatcher(
         const val RX_ERROR_PAUSE_MS = 50L
 
         const val MSG_MOUSE_MOVE: Byte = 0x01
+        const val MSG_MOUSE_TO: Byte = 0x1B
         const val MSG_MOUSE_BUTTON: Byte = 0x02
         const val MSG_SCROLL: Byte = 0x03
         const val MSG_KEY_PRESS: Byte = 0x04

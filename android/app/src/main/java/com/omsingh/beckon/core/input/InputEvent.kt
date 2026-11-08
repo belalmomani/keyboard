@@ -15,6 +15,9 @@ sealed interface InputEvent {
     /** Relative pointer movement, in device-independent units. */
     data class MouseMove(val dx: Float, val dy: Float) : InputEvent
 
+    /** The pointer goes to a place on the PC's main screen: [x] and [y] run from 0 (left, top) to 1 (right, bottom). */
+    data class MouseTo(val x: Float, val y: Float) : InputEvent
+
     /** Mouse button press or release. */
     data class MouseButton(val button: Button, val pressed: Boolean) : InputEvent
 

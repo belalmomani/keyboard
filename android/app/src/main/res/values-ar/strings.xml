@@ -126,10 +126,10 @@
     <string name="add_connect">اتصال</string>
     <string name="add_address_invalid">أدخل عنوانًا مثل 192.168.1.20</string>
     <string name="add_port_invalid">يجب أن يكون المنفذ بين 1 و65535</string>
-    <string name="add_bt_intro">يعمل البلوتوث دون Wi‑Fi. يظهر هذا الهاتف للحاسوب كلوحة مفاتيح وفأرة.</string>
+    <string name="add_bt_intro">يعمل البلوتوث دون Wi‑Fi. يظهر هذا الهاتف للحاسوب أو التلفاز كلوحة مفاتيح وفأرة.</string>
     <string name="add_bt_step_visible">افتح إعدادات البلوتوث في هذا الهاتف وأبقها مفتوحة ليكون الهاتف ظاهرًا.</string>
-    <string name="add_bt_step_pair">على الحاسوب أضف جهاز بلوتوث واختر هذا الهاتف.</string>
-    <string name="add_bt_step_pick">عد إلى هنا واختر الحاسوب.</string>
+    <string name="add_bt_step_pair">على الحاسوب أو التلفاز أضف جهاز بلوتوث واختر هذا الهاتف. في أندرويد TV: الإعدادات، وحدات التحكم والملحقات، إضافة ملحق.</string>
+    <string name="add_bt_step_pick">عد إلى هنا واختر الحاسوب أو التلفاز.</string>
     <string name="add_bt_open_settings">فتح إعدادات البلوتوث</string>
     <string name="add_bt_none">لا توجد أجهزة بلوتوث مقترنة بعد.</string>
     <string name="add_bt_choose">الأجهزة المقترنة</string>

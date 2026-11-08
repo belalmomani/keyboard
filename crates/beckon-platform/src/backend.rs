@@ -31,6 +31,11 @@ pub trait InputBackend: Send {
     fn name(&self) -> &'static str;
 
     fn mouse_move(&mut self, dx: i16, dy: i16) -> Result<()>;
+    /// Puts the pointer at a place on the main screen; `x` and `y` run from 0 to 65535 across it. Only
+    /// Windows does this (the PC's screen can be shown only there); elsewhere it does nothing.
+    fn mouse_to(&mut self, _x: u16, _y: u16) -> Result<()> {
+        Ok(())
+    }
     fn mouse_button(&mut self, button: MouseButtonKind, pressed: bool) -> Result<()>;
     /// `delta` is in wheel notches; positive scrolls up (content moves down).
     fn scroll(&mut self, delta: i16) -> Result<()>;
@@ -103,6 +108,9 @@ impl InputBackend for DeferredInput {
     }
     fn mouse_move(&mut self, dx: i16, dy: i16) -> Result<()> {
         self.backend()?.mouse_move(dx, dy)
+    }
+    fn mouse_to(&mut self, x: u16, y: u16) -> Result<()> {
+        self.backend()?.mouse_to(x, y)
     }
     fn mouse_button(&mut self, button: MouseButtonKind, pressed: bool) -> Result<()> {
         self.backend()?.mouse_button(button, pressed)

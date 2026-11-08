@@ -22,4 +22,6 @@
     <string name="screen_control_keyboard">لوحة المفاتيح</string>
     <string name="screen_control_backspace">حذف</string>
     <string name="screen_control_enter">إدخال</string>
+    <string name="screen_control_use_pad">استخدام الإصبع كلوحة</string>
+    <string name="screen_control_use_touch">المس للإشارة</string>
 </resources>

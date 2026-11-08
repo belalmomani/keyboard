@@ -115,6 +115,7 @@ class HidInputTranslator(
     private fun process(event: InputEvent) {
         when (event) {
             is InputEvent.MouseMove -> Unit // handled before it is queued
+            is InputEvent.MouseTo -> Unit // a Bluetooth mouse is relative: there is no such thing
 
             is InputEvent.MouseButton -> {
                 flushMove()

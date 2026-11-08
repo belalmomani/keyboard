@@ -65,6 +65,7 @@ import androidx.compose.material.icons.automirrored.rounded.Backspace
 import androidx.compose.material.icons.automirrored.rounded.KeyboardReturn
 import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.Mouse
+import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.rememberUpdatedState
@@ -74,6 +75,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.omsingh.beckon.core.input.InputEvent
 import com.omsingh.beckon.core.input.KeyboardSession
@@ -152,8 +154,10 @@ private fun PictureView(
         Bitmap.createBitmap(picture.pixels, picture.width, picture.height, Bitmap.Config.ARGB_8888).asImageBitmap()
     }
     val control by controller.control.collectAsState()
+    val direct by controller.direct.collectAsState()
     var typing by remember { mutableStateOf(false) }
     val send by rememberUpdatedState(actions::send)
+    val aspect = picture.width.toFloat() / picture.height.coerceAtLeast(1)
     Box(Modifier.fillMaxSize()) {
         Image(
             bitmap = bitmap,
@@ -162,7 +166,7 @@ private fun PictureView(
             modifier = Modifier
                 .fillMaxSize()
                 .then(
-                    if (control) Modifier.pointerInput(Unit) { controlGestures { send(it) } }
+                    if (control) Modifier.pointerInput(direct, aspect) { controlGestures(direct, aspect) { send(it) } }
                     else Modifier.clickable(onClick = onFullscreen),
                 ),
         )
@@ -179,6 +183,12 @@ private fun PictureView(
                     )
                 }
                 if (control) {
+                    FilledTonalIconButton(onClick = { controller.direct.value = !direct }) {
+                        Icon(
+                            if (direct) Icons.Rounded.TouchApp else Icons.Rounded.Mouse,
+                            contentDescription = stringResource(if (direct) R.string.screen_control_use_pad else R.string.screen_control_use_touch),
+                        )
+                    }
                     FilledTonalIconButton(onClick = { typing = !typing }) {
                         Icon(Icons.Rounded.Keyboard, contentDescription = stringResource(R.string.screen_control_keyboard))
                     }
@@ -210,8 +220,10 @@ private fun FullscreenPicture(
     val activity = context as? Activity
     val landscape by controller.landscape.collectAsState()
     val control by controller.control.collectAsState()
+    val direct by controller.direct.collectAsState()
     var typing by remember { mutableStateOf(false) }
     val send by rememberUpdatedState(actions::send)
+    val aspect = ((state as? ScreenViewState.Showing)?.picture?.let { it.width.toFloat() / it.height.coerceAtLeast(1) }) ?: 1.6f
 
     // Sharper pictures while this is open; asked again when a new view starts (a reconnect forgets the choice).
     LaunchedEffect(state is ScreenViewState.Showing || state == ScreenViewState.Waiting) { controller.setWide(true) }
@@ -247,7 +259,7 @@ private fun FullscreenPicture(
                 .then(
                     if (control) {
                         // Full control: the finger is a pad laid over the picture.
-                        Modifier.pointerInput(Unit) { controlGestures { send(it) } }
+                        Modifier.pointerInput(direct, aspect) { controlGestures(direct, aspect) { send(it) } }
                     } else {
                         Modifier
                             .pointerInput(Unit) {
@@ -285,7 +297,12 @@ private fun FullscreenPicture(
                         contentScale = ContentScale.Fit,
                         modifier = Modifier
                             .fillMaxSize()
-                            .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offsetX, translationY = offsetY),
+                            .graphicsLayer(
+                                scaleX = if (control) 1f else scale,
+                                scaleY = if (control) 1f else scale,
+                                translationX = if (control) 0f else offsetX,
+                                translationY = if (control) 0f else offsetY,
+                            ),
                     )
                 }
                 else -> CircularProgressIndicator(color = Color.White)
@@ -303,6 +320,12 @@ private fun FullscreenPicture(
                         )
                     }
                     if (control) {
+                        FilledTonalIconButton(onClick = { controller.direct.value = !direct }) {
+                            Icon(
+                                if (direct) Icons.Rounded.TouchApp else Icons.Rounded.Mouse,
+                                contentDescription = stringResource(if (direct) R.string.screen_control_use_pad else R.string.screen_control_use_touch),
+                            )
+                        }
                         FilledTonalIconButton(onClick = { typing = !typing }) {
                             Icon(Icons.Rounded.Keyboard, contentDescription = stringResource(R.string.screen_control_keyboard))
                         }
@@ -404,11 +427,22 @@ private fun ControlKeyboard(keyboard: KeyboardSession, modifier: Modifier = Modi
     }
 }
 
+/** Where a touch at [p] lies in a picture of this [aspect] shown fitted in [size], from 0 to 1 each way. */
+private fun placeInPicture(size: IntSize, aspect: Float, p: Offset): Offset {
+    val w = size.width.toFloat().coerceAtLeast(1f)
+    val h = size.height.toFloat().coerceAtLeast(1f)
+    val (iw, ih) = if (aspect > w / h) w to w / aspect else h * aspect to h
+    val left = (w - iw) / 2f
+    val top = (h - ih) / 2f
+    return Offset(((p.x - left) / iw).coerceIn(0f, 1f), ((p.y - top) / ih).coerceIn(0f, 1f))
+}
+
 /**
- * One finger moves the pointer, a tap clicks, a long press right-clicks, two fingers scroll. The pointer
- * itself is the one in the picture.
+ * Touch control over the picture. Direct: the pointer goes to where the finger is (and follows it), a tap clicks
+ * there. Pad: one finger moves the pointer by how far it moves. Either way a long press right-clicks and two
+ * fingers scroll. The pointer itself is the one in the picture.
  */
-private suspend fun PointerInputScope.controlGestures(send: (InputEvent) -> Unit) {
+private suspend fun PointerInputScope.controlGestures(direct: Boolean, aspect: Float, send: (InputEvent) -> Unit) {
     val slop = 8.dp.toPx()
     val notch = 36.dp.toPx()
     val speed = 1.8f
@@ -417,24 +451,31 @@ private suspend fun PointerInputScope.controlGestures(send: (InputEvent) -> Unit
         var travelled = 0f
         var scrolled = false
         var carry = 0f
+        if (direct) placeInPicture(size, aspect, down.position).let { send(InputEvent.MouseTo(it.x, it.y)) }
         do {
             val event = awaitPointerEvent()
-            val down2 = event.changes.filter { it.pressed }
-            if (down2.size >= 2) {
+            val held = event.changes.filter { it.pressed }
+            if (held.size >= 2) {
                 scrolled = true
-                carry += down2.map { it.positionChange().y }.average().toFloat()
+                carry += held.map { it.positionChange().y }.average().toFloat()
                 while (carry >= notch) { send(InputEvent.Scroll(1f)); carry -= notch }
                 while (carry <= -notch) { send(InputEvent.Scroll(-1f)); carry += notch }
-            } else if (!scrolled && down2.size == 1) {
-                val d = down2[0].positionChange()
+            } else if (!scrolled && held.size == 1) {
+                val d = held[0].positionChange()
                 travelled += kotlin.math.abs(d.x) + kotlin.math.abs(d.y)
-                if (d != Offset.Zero) send(InputEvent.MouseMove(d.x * speed / density, d.y * speed / density))
+                if (d != Offset.Zero) {
+                    if (direct) {
+                        placeInPicture(size, aspect, held[0].position).let { send(InputEvent.MouseTo(it.x, it.y)) }
+                    } else {
+                        send(InputEvent.MouseMove(d.x * speed / density, d.y * speed / density))
+                    }
+                }
             }
             event.changes.forEach { it.consume() }
         } while (event.changes.any { it.pressed })
-        val held = android.os.SystemClock.uptimeMillis() - down.uptimeMillis
+        val heldFor = android.os.SystemClock.uptimeMillis() - down.uptimeMillis
         if (!scrolled && travelled < slop) {
-            send(if (held >= 500) InputEvent.RightClick else InputEvent.Click)
+            send(if (heldFor >= 500) InputEvent.RightClick else InputEvent.Click)
         }
     }
 }

@@ -22,4 +22,6 @@
     <string name="screen_control_keyboard">Keyboard</string>
     <string name="screen_control_backspace">Backspace</string>
     <string name="screen_control_enter">Enter</string>
+    <string name="screen_control_use_pad">Use the finger as a pad</string>
+    <string name="screen_control_use_touch">Touch to point</string>
 </resources>

@@ -56,6 +56,8 @@ pub const MSG_TYPE_SCREEN_VIEW: u8 = 0x19;
 
 /// Typing that is not lost: an edit (Backspaces, then text) with a sequence number, see [`ClientMessage::TypedEdit`].
 pub const MSG_TYPE_TYPED_EDIT: u8 = 0x1A;
+/// Moves the pointer to a place on the main screen, see [`ClientMessage::MouseTo`].
+pub const MSG_TYPE_MOUSE_TO: u8 = 0x1B;
 
 pub const MSG_TYPE_CLIPBOARD_DATA: u8 = 0x80;
 pub const MSG_TYPE_NOW_PLAYING: u8 = 0x81;
@@ -544,6 +546,12 @@ pub enum ClientMessage {
         backspaces: u16,
         text: String,
     },
+    /// Puts the pointer at a place on the main screen: `x` and `y` run from 0 (left, top) to 65535
+    /// (right, bottom) of it. Used when the phone shows the PC's screen and a finger touches the picture.
+    MouseTo {
+        x: u16,
+        y: u16,
+    },
 }
 
 impl ClientMessage {
@@ -553,6 +561,11 @@ impl ClientMessage {
                 buf.put_u8(MSG_TYPE_MOUSE_MOVE);
                 buf.put_i16_le(*dx);
                 buf.put_i16_le(*dy);
+            }
+            Self::MouseTo { x, y } => {
+                buf.put_u8(MSG_TYPE_MOUSE_TO);
+                buf.put_u16_le(*x);
+                buf.put_u16_le(*y);
             }
             Self::MouseButton { button, pressed } => {
                 buf.put_u8(MSG_TYPE_MOUSE_BUTTON);
@@ -723,6 +736,17 @@ impl ClientMessage {
                 let dx = buf.get_i16_le();
                 let dy = buf.get_i16_le();
                 Ok(Self::MouseMove { dx, dy })
+            }
+            MSG_TYPE_MOUSE_TO => {
+                if buf.len() < 4 {
+                    return Err(ProtocolError::BufferTooShort {
+                        expected: 4,
+                        actual: buf.len(),
+                    });
+                }
+                let x = buf.get_u16_le();
+                let y = buf.get_u16_le();
+                Ok(Self::MouseTo { x, y })
             }
             MSG_TYPE_MOUSE_BUTTON => {
                 if buf.len() < 2 {
@@ -1411,6 +1435,15 @@ mod tests {
     #[test]
     fn test_mouse_move_roundtrip() {
         let original = ClientMessage::MouseMove { dx: -125, dy: 450 };
+        let mut buf = BytesMut::new();
+        original.encode(&mut buf).unwrap();
+        let decoded = ClientMessage::decode(&buf).unwrap();
+        assert_eq!(original, decoded);
+    }
+
+    #[test]
+    fn test_mouse_to_roundtrip() {
+        let original = ClientMessage::MouseTo { x: 0, y: 65535 };
         let mut buf = BytesMut::new();
         original.encode(&mut buf).unwrap();
         let decoded = ClientMessage::decode(&buf).unwrap();

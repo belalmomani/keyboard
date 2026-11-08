@@ -14,6 +14,9 @@ class ScreenController(private val manager: ConnectionManager) {
     val landscape = MutableStateFlow(false)
     val control = MutableStateFlow(false)
 
+    /** While controlling: a touch puts the pointer at that place in the picture (true), or the finger is a pad (false). */
+    val direct = MutableStateFlow(true)
+
     /** Asks the PC for pictures of its screen. */
     fun start() = manager.startScreenView()
 

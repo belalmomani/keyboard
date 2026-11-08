@@ -594,6 +594,18 @@ impl InputBackend for WindowsInput {
         )
     }
 
+    fn mouse_to(&mut self, x: u16, y: u16) -> Result<()> {
+        send_inputs(
+            &mut [mouse_input(
+                x.into(),
+                y.into(),
+                0,
+                MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE,
+            )],
+            "mouse to",
+        )
+    }
+
     fn mouse_button(&mut self, button: MouseButtonKind, pressed: bool) -> Result<()> {
         let flags = match (button, pressed) {
             (MouseButtonKind::Left, true) => MOUSEEVENTF_LEFTDOWN,

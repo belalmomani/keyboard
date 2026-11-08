@@ -218,6 +218,7 @@ pub fn apply(
 ) -> Option<Result<(), PlatformError>> {
     Some(match message {
         ClientMessage::MouseMove { dx, dy } => backend.mouse_move(*dx, *dy),
+        ClientMessage::MouseTo { x, y } => backend.mouse_to(*x, *y),
         ClientMessage::MouseButton { button, pressed } => backend.mouse_button(*button, *pressed),
         ClientMessage::Scroll { delta } => backend.scroll(*delta),
         ClientMessage::KeyPress { keycode, mods } => backend.key(*keycode, *mods, true),
