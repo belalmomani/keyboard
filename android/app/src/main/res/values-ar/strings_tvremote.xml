@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tv_remote_title">ريموت التلفاز</string>
+    <string name="tv_remote_tile">ريموت التلفاز</string>
+    <string name="tv_remote_intro">تحكم بتلفاز أندرويد TV أو Google TV عبر الواي فاي. يجب أن يكون الهاتف والتلفاز على الشبكة نفسها. في أول مرة يعرض التلفاز رمزاً تكتبه هنا.</string>
+    <string name="tv_remote_paired">تلفازات مقترنة</string>
+    <string name="tv_remote_found">تلفازات وُجدت</string>
+    <string name="tv_remote_searching">أبحث عن تلفازات على هذه الشبكة…</string>
+    <string name="tv_remote_address">أو عنوان التلفاز (مثل 192.168.1.20)</string>
+    <string name="tv_remote_connect">اتصال</string>
+    <string name="tv_remote_forget">نسيان</string>
+    <string name="tv_remote_connecting">جارٍ الاتصال…</string>
+    <string name="tv_remote_code_body">يظهر رمز على التلفاز. اكتبه هنا.</string>
+    <string name="tv_remote_code_label">الرمز على التلفاز</string>
+    <string name="tv_remote_pair">اقتران</string>
+    <string name="tv_remote_wrong_code">هذا ليس الرمز الظاهر على التلفاز. حاول مرة أخرى.</string>
+    <string name="tv_remote_pairing_failed">لم يكتمل الاقتران. حاول مرة أخرى.</string>
+    <string name="tv_remote_cannot_reach">تعذّر الوصول إلى التلفاز. هل هو يعمل، وعلى نفس الواي فاي، وهل عنوانه صحيح؟</string>
+    <string name="tv_remote_lost">انتهى الاتصال بالتلفاز.</string>
+    <string name="tv_remote_type">اكتب على التلفاز</string>
+    <string name="tv_remote_send">إرسال</string>
+    <string name="tv_key_ok">موافق</string>
+    <string name="tv_key_back">رجوع</string>
+    <string name="tv_key_home">الرئيسية</string>
+    <string name="tv_key_menu">القائمة</string>
+    <string name="tv_key_vol_up">صوت +</string>
+    <string name="tv_key_vol_down">صوت −</string>
+    <string name="tv_key_mute">كتم</string>
+    <string name="tv_key_play">تشغيل / إيقاف</string>
+    <string name="tv_key_power">تشغيل التلفاز</string>
+    <string name="tv_key_ch_up">قناة +</string>
+    <string name="tv_key_ch_down">قناة −</string>
+    <string name="tv_key_delete">حذف</string>
+</resources>

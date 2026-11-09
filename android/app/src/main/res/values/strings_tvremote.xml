@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tv_remote_title">TV remote</string>
+    <string name="tv_remote_tile">TV remote</string>
+    <string name="tv_remote_intro">Control an Android TV or Google TV over Wi‑Fi. The phone and the TV must be on the same network. The first time, the TV shows a code to type here.</string>
+    <string name="tv_remote_paired">Paired TVs</string>
+    <string name="tv_remote_found">TVs found</string>
+    <string name="tv_remote_searching">Looking for TVs on this network…</string>
+    <string name="tv_remote_address">Or the TV\u2019s address (for example 192.168.1.20)</string>
+    <string name="tv_remote_connect">Connect</string>
+    <string name="tv_remote_forget">Forget</string>
+    <string name="tv_remote_connecting">Connecting…</string>
+    <string name="tv_remote_code_body">A code is showing on the TV. Type it here.</string>
+    <string name="tv_remote_code_label">Code on the TV</string>
+    <string name="tv_remote_pair">Pair</string>
+    <string name="tv_remote_wrong_code">That is not the code the TV shows. Try again.</string>
+    <string name="tv_remote_pairing_failed">Pairing did not finish. Try again.</string>
+    <string name="tv_remote_cannot_reach">Could not reach the TV. Is it on, on the same Wi‑Fi, and is its address right?</string>
+    <string name="tv_remote_lost">The connection with the TV ended.</string>
+    <string name="tv_remote_type">Type on the TV</string>
+    <string name="tv_remote_send">Send</string>
+    <string name="tv_key_ok">OK</string>
+    <string name="tv_key_back">Back</string>
+    <string name="tv_key_home">Home</string>
+    <string name="tv_key_menu">Menu</string>
+    <string name="tv_key_vol_up">Vol +</string>
+    <string name="tv_key_vol_down">Vol −</string>
+    <string name="tv_key_mute">Mute</string>
+    <string name="tv_key_play">Play / Pause</string>
+    <string name="tv_key_power">Power</string>
+    <string name="tv_key_ch_up">Ch +</string>
+    <string name="tv_key_ch_down">Ch −</string>
+    <string name="tv_key_delete">Delete</string>
+</resources>

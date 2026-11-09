@@ -13,6 +13,9 @@ import kotlinx.serialization.Serializable
 /** Linking this phone with another one: a code to show, or to scan. */
 @Serializable data object PhoneLink
 
+/** Controlling a TV over Wi-Fi. */
+@Serializable data object TvRemote
+
 /** The camera, scanning the code on another phone's screen. */
 @Serializable data object ScanLink
 

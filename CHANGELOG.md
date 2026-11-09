@@ -27,6 +27,7 @@ All notable changes are listed here, newest first. The format follows [Keep a Ch
 
 ### Added
 
+- **Control a TV over Wi-Fi.** A new TV remote tool (in the tools sheet) finds Android TVs and Google TVs on the network, pairs with them by the code the TV shows (the same way the Google TV app does) and gives arrows, OK, Back, Home, Menu, volume, play, power, channels and typing. Over Wi-Fi, not Bluetooth; no mouse pointer (the TV's protocol has none).
 - **Beckon on a television.** On Android TV / Google TV the app opens a receiver: a big code on the screen, a phone scans it (Link a phone, then Send from here), and the phone's screen appears full screen, view only. The TV asks first, with Refuse selected so a stray press of OK allows nothing. Photos and files the phone sends are kept on the TV. Everything works with the remote's arrows, OK and Back.
 - **Show the PC's screen on the TV (or another phone).** After linking, "Show my PC's screen" passes on the pictures of the PC's screen that the phone already receives, view only, and only if the PC allowed it. Nothing is stored.
 

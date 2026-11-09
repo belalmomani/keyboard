@@ -48,6 +48,7 @@ import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.PhoneAndroid
+import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material.icons.rounded.Mouse
 import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material.icons.rounded.Wifi
@@ -129,6 +130,7 @@ fun RemoteRoute(
     onGoToDevices: () -> Unit,
     modifier: Modifier = Modifier,
     onLinkPhone: () -> Unit = {},
+    onTvRemote: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -163,6 +165,7 @@ fun RemoteRoute(
         snackbar = snackbar,
         onGoToDevices = onGoToDevices,
         onLinkPhone = onLinkPhone,
+        onTvRemote = onTvRemote,
         modifier = modifier,
     )
 }
@@ -176,6 +179,7 @@ fun RemoteScreen(
     onGoToDevices: () -> Unit,
     modifier: Modifier = Modifier,
     onLinkPhone: () -> Unit = {},
+    onTvRemote: () -> Unit = {},
     snackbar: SnackbarHostState = remember { SnackbarHostState() },
     library: LibraryController? = null,
     quick: QuickController? = null,
@@ -297,6 +301,10 @@ fun RemoteScreen(
             onLinkPhone = {
                 toolsOpen = false
                 onLinkPhone()
+            },
+            onTvRemote = {
+                toolsOpen = false
+                onTvRemote()
             },
             onDismiss = { toolsOpen = false },
         )
@@ -527,7 +535,7 @@ private const val SWIPE_UP_VELOCITY = 300f
 /** Every other tool as a big button. Picking one closes the sheet; the arrow at the top does too. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ToolsSheet(current: RemoteMode, onPick: (RemoteMode) -> Unit, onLinkPhone: () -> Unit, onDismiss: () -> Unit) {
+private fun ToolsSheet(current: RemoteMode, onPick: (RemoteMode) -> Unit, onLinkPhone: () -> Unit, onTvRemote: () -> Unit, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(
             modifier = Modifier
@@ -553,7 +561,7 @@ private fun ToolsSheet(current: RemoteMode, onPick: (RemoteMode) -> Unit, onLink
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 ToolTile(Icons.Rounded.PhoneAndroid, stringResource(R.string.remote_tools_link), false, onLinkPhone, Modifier.weight(1f))
-                Spacer(Modifier.weight(1f))
+                ToolTile(Icons.Rounded.Tv, stringResource(R.string.tv_remote_tile), false, onTvRemote, Modifier.weight(1f))
                 Spacer(Modifier.weight(1f))
             }
         }

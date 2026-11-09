@@ -55,6 +55,9 @@ import com.omsingh.beckon.ui.navigation.Onboarding
 import com.omsingh.beckon.ui.navigation.Remote
 import com.omsingh.beckon.ui.navigation.PhoneLink
 import com.omsingh.beckon.ui.navigation.Scan
+import com.omsingh.beckon.ui.navigation.TvRemote
+import com.omsingh.beckon.ui.screens.tvremote.TvRemoteRoute
+import com.omsingh.beckon.ui.screens.tvremote.TvRemoteViewModel
 import com.omsingh.beckon.ui.navigation.ScanLink
 import com.omsingh.beckon.ui.navigation.Settings
 import com.omsingh.beckon.ui.navigation.SettingsDetail
@@ -209,6 +212,10 @@ fun BeckonRoot(
                             onBack = { navController.popBackStack() },
                         )
                     }
+                    composable<TvRemote> {
+                        val tvRemoteViewModel: TvRemoteViewModel = viewModel()
+                        TvRemoteRoute(tvRemoteViewModel, onBack = { navController.popBackStack() })
+                    }
                     composable<ScanLink> {
                         ScanRoute(
                             onInvite = {},
@@ -234,6 +241,7 @@ fun BeckonRoot(
                             remoteViewModel,
                             onGoToDevices = { navController.navigateToTab(Tab.DEVICES) },
                             onLinkPhone = { navController.navigate(PhoneLink) },
+                            onTvRemote = { navController.navigate(TvRemote) },
                         )
                     }
                     composable<Settings> {
